@@ -26,6 +26,9 @@ public class Conversation {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    private String name;
+    private String image;
+
     public Conversation() {}
 
     public Long getConvId() {

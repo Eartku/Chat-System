@@ -1,16 +1,19 @@
 package com.chatapp.services;
 
-import com.chatapp.models.User;
 import java.util.List;
 
+import com.chatapp.dto.UserCreateRequest;
+import com.chatapp.dto.UserResponse;
+import com.chatapp.dto.UserUpdateRequest;
+
 public interface UserService {
-    List<User> getAllUsers();
+    List<UserResponse> getAllUsers();
 
-    User saveUser(User user);
+    UserResponse createUser(UserCreateRequest request);
 
-    User getUserById(Long id);
+    UserResponse getUserById(Long id);
 
-    User updateUserById(Long id, User user);
-
+    UserResponse updateUserById(Long id, UserUpdateRequest request);
+    
     void deleteUserById(Long id);
 }
