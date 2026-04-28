@@ -11,10 +11,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.chatapp.dto.UserCreateRequest;
-import com.chatapp.dto.UserResponse;
-import com.chatapp.dto.UserUpdateRequest;
-import com.chatapp.services.UserService;
+import com.chatapp.dto.user.UserUpdateRequest;
+import com.chatapp.services.user.UserService;
+
+import jakarta.validation.Valid;
+
+import com.chatapp.dto.user.UserCreateRequest;
+import com.chatapp.dto.user.UserResponse;
 
 @RestController
 @RequestMapping("/api/user")
@@ -32,7 +35,7 @@ public class UserController {
     }
 
     @PostMapping
-    public UserResponse createUser(@RequestBody UserCreateRequest request) {
+    public UserResponse createUser(@Valid @RequestBody UserCreateRequest request) {
         return userService.createUser(request);
     }
 
@@ -42,7 +45,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    public UserResponse updateUserById(@PathVariable Long id, @RequestBody UserUpdateRequest request) {
+    public UserResponse updateUserById(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request) {
         return userService.updateUserById(id, request);
     }
     

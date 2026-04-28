@@ -1,4 +1,4 @@
-package com.chatapp.services;
+package com.chatapp.services.user;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -6,9 +6,9 @@ import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.chatapp.dto.UserCreateRequest;
-import com.chatapp.dto.UserResponse;
-import com.chatapp.dto.UserUpdateRequest;
+import com.chatapp.dto.user.UserUpdateRequest;
+import com.chatapp.dto.user.UserCreateRequest;
+import com.chatapp.dto.user.UserResponse;
 import com.chatapp.exceptions.BadRequestException;
 import com.chatapp.exceptions.DuplicateResourceException;
 import com.chatapp.exceptions.ResourceNotFoundException;

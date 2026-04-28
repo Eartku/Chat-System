@@ -1,10 +1,10 @@
-package com.chatapp.services;
+package com.chatapp.services.user;
 
 import java.util.List;
 
-import com.chatapp.dto.UserCreateRequest;
-import com.chatapp.dto.UserResponse;
-import com.chatapp.dto.UserUpdateRequest;
+import com.chatapp.dto.user.UserUpdateRequest;
+import com.chatapp.dto.user.UserCreateRequest;
+import com.chatapp.dto.user.UserResponse;
 
 public interface UserService {
     List<UserResponse> getAllUsers();
