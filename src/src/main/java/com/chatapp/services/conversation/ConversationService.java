@@ -1,7 +1,17 @@
 package com.chatapp.services.conversation;
 
-import org.springframework.stereotype.Service;
+import java.util.List;
 
-@Service
+import com.chatapp.dto.conversation.*;
+
 public interface ConversationService {
+    List<ConversationSummaryResponse> getAllConversation();
+
+    ConversationResponse getConversationById(Long id);
+
+    ConversationResponse createConversation(ConversationCreateRequest request);
+
+    ConversationResponse updateConversationById(Long id, ConversationUpdateRequest request);
+
+    void deleteConversationById(Long id);
 }

@@ -1,6 +1,11 @@
 package com.chatapp.dto.conversation;
 
-public record ConversationUpdateRequest() {
-}
+import java.util.List;
 
+public record ConversationUpdateRequest(
+    String name,
+    String imgUrl,
+    List<Long> addMemberIds,
+    List<Long> removeMemberIds
+) {}
 

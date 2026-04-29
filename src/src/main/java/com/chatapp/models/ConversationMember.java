@@ -35,10 +35,31 @@ public class ConversationMember {
     @Enumerated(EnumType.STRING)
     private MemberRole role = MemberRole.MEMBER;
 
+    public ConversationMember() {}
+
+    public ConversationMember(Conversation conversation, User user, MemberRole role) {
+        this.conversation = conversation;
+        this.user = user;
+        this.id = new ConversationMemberId(conversation.getConvId(), user.getUserId());
+        this.joinedAt = LocalDateTime.now();
+        if (role != null) {
+            this.role = role;
+        }
+    }
+
+    public ConversationMemberId getId(){return this.id;}
+
+    public User getUser(){ return this.user; }
+
+    public Conversation getConversation(){ return this.conversation; }
+
     public MemberRole getRole() { return role; }
     
     public LocalDateTime getJoinedAt() { return joinedAt; }
 
+    public void setId(ConversationMemberId id) { this.id = id; }
+    public void setConversation(Conversation conversation) { this.conversation = conversation; }
+    public void setUser(User user) { this.user = user; }
+    public void setJoinedAt(LocalDateTime joinedAt) { this.joinedAt = joinedAt; }
     public void setRole(MemberRole role) { this.role = role; }
 }
-

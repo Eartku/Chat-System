@@ -11,6 +11,8 @@ public class ConversationMemberId implements Serializable {
     private Long convId;
     private Long userId;
 
+    public ConversationMemberId() {}
+
     // constructor, equals, hashCode
     public ConversationMemberId(Long convId, Long userId) {
         this.convId = convId;
