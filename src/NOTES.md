@@ -48,6 +48,7 @@ user_id bigint PK         (FK)
     Nếu chọn user_id: Chỉ có thể có 1 USER duy nhất cho mỗi cuộc hội thoại. Nếu thêm USER thứ hai vào cuộc hội thoại -> trùng khóa.
 
     Nếu chọn conv_id: Chỉ có thể có 1 cuộc hội thoại duy nhất cho mỗi User. Nếu tạo cuộc hội thoại thứ hai ở User đó -> trùng khóa.
+
 # GHI CHÚ:
 ## 1. (convId + userId) = PRIMARY KEY của bảng ConversationMember
 * Composite key dùng để đảm bảo mỗi user chỉ tham gia một conversation một lần, và định danh duy nhất quan hệ membership đó.
@@ -79,4 +80,13 @@ Role trong User khác với Role trong cuộc hội thoại:
 * Vì mỗi cuộc hội thoại có các tin nhắn khác nhau
 * Không thể tách riêng để xem riêng vì lý do bảo mật thông tin
 
+## 7. endpoint PUT và PATCH giống nhau: Đều là cập nhật thông tin, khác nhau:
+* PUT là cập nhật toàn bộ thông tin
+* PATCH là chỉ cập nhật field cần thiết
 
+## 8.JWT
+Luồng từ JWT:
+Flow:  Tạo token (JWT Service) --> Filter (Nhận tokem và nhận diện currentUser) ---> Đưa vào controller để thao tác tiếp
+* Token key được sinh ra: Flow: String → byte[] → Key → dùng để .signWith(...) :
+với getSignKey() = tạo khóa, generateToken() = dùng chìa khóa để ký token
+*
