@@ -1,0 +1,154 @@
+@baseUrl = http://localhost:8081
+
+### 1. Create user Alice
+# @name createAlice
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "username": "alice_test",
+  "password": "123456",
+  "email": "alice_test@example.com"
+}
+
+### 2. Create user Bob
+# @name createBob
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "username": "bob_test",
+  "password": "123456",
+  "email": "bob_test@example.com"
+}
+
+### 3. Create user Charlie
+# @name createCharlie
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "username": "charlie_test",
+  "password": "123456",
+  "email": "charlie_test@example.com"
+}
+
+### 4. Get all users
+GET {{baseUrl}}/api/user
+
+### 5. Create private conversation Alice - Bob
+# @name createPrivateConversation
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+
+{
+  "type": "PRIVATE",
+  "name": null,
+  "imgUrl": null,
+  "memberIds": [
+    1,2
+  ]
+}
+
+### 6. Get all conversations
+GET {{baseUrl}}/api/conversations
+
+### 7. Get private conversation detail
+GET {{baseUrl}}/api/conversations/{{createPrivateConversation.response.body.$.id}}
+
+### 8. Send message from Alice
+# @name sendAliceMessage
+POST {{baseUrl}}/api/conversations/1/messages
+Content-Type: application/json
+
+{
+  "senderId": 1,
+  "content": "I love you, Bob!"
+}
+
+### 9. Send message from Bob
+# @name sendBobMessage
+POST {{baseUrl}}/api/conversations/1/messages
+Content-Type: application/json
+
+{
+  "senderId": 2,
+  "content": "I love you, too!"
+}
+
+### 10. Get messages in private conversation
+GET {{baseUrl}}/api/conversations/1/messages
+
+### 11. Update Alice message
+PATCH {{baseUrl}}/api/messages/1
+Content-Type: application/json
+
+{
+  "content": "I love you so much, edited"
+}
+
+### 12. Mark Alice message as read
+PATCH {{baseUrl}}/api/messages/1/read
+
+### 13. Soft delete Bob message
+DELETE {{baseUrl}}/api/messages/1
+
+### 14. Create group conversation Alice - Bob
+# @name createGroupConversation
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+
+{
+  "type": "GROUP",
+  "name": "Test Group",
+  "imgUrl": null,
+  "memberIds": [1,2
+  ]
+}
+
+### 15. Add Charlie to group
+PUT {{baseUrl}}/api/conversations/{{createGroupConversation.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "name": "Test Group",
+  "imgUrl": null,
+  "addMemberIds": [
+    3
+  ],
+  "removeMemberIds": []
+}
+
+### 16. Send group message from Charlie
+POST {{baseUrl}}/api/conversations/{{createGroupConversation.response.body.$.id}}/messages
+Content-Type: application/json
+
+{
+  "senderId": 3,
+  "content": "Hello Skibidi Sigma Guys!"
+}
+
+### 17. Get group messages
+GET {{baseUrl}}/api/conversations/3/messages
+
+### Negative test: duplicate private conversation should return 409
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+
+{
+  "type": "PRIVATE",
+  "name": null,
+  "imgUrl": null,
+  "memberIds": [
+    1,2
+  ]
+}
+
+### Negative test: Charlie sends message to private conversation before being a member, should return 400
+POST {{baseUrl}}/api/conversations/3/messages
+Content-Type: application/json
+
+{
+  "senderId": 3,
+  "content": "I should not be allowed here"
+}

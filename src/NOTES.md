@@ -74,3 +74,9 @@ Role trong User khác với Role trong cuộc hội thoại:
 * ConversationResponse lưu phản hồi đầy đủ của một cuộc hội thoại, gồm cả danh sách các thành viên
 * ConversationSummaryResponse chỉ lưu thông tin cơ bản của một cuộc hội thoại để load ở trang chủ (không gồm danh sách thành viên -> tránh query lấy danh sách nhiều lần)
 * MemberResponse lưu thông tin của member trong một cuộc hội thoại - chỉ có yêu cầu thêm hoặc xóa (POST và DELETE trên Bảng trung gian)
+
+## 6. Message API phải dựa theo Conversation
+* Vì mỗi cuộc hội thoại có các tin nhắn khác nhau
+* Không thể tách riêng để xem riêng vì lý do bảo mật thông tin
+
+
