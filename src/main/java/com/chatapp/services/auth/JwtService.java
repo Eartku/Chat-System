@@ -57,4 +57,17 @@ public class JwtService {
     private Key getSignKey() { //tạo khóa ký
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
     }
+
+    // private Claims extractAllClaims(String token) {
+    //     return Jwts.parserBuilder()
+    //             .setSigningKey(getSignKey())
+    //             .build()
+    //             .parseClaimsJws(token)
+    //             .getBody();
+    // }
+    // public long getRemainingTime(String token) {
+    //     Date expiration = extractExpiration(token);
+    //     long remaining = expiration.getTime() - System.currentTimeMillis();
+    //     return Math.max(0, remaining); // Trả về 0 nếu đã hết hạn
+    // }
 }

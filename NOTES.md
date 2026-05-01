@@ -104,3 +104,6 @@ với getSignKey() = tạo khóa, generateToken() = dùng chìa khóa để ký 
 * SpringSecurity không biết cách lấy User từ hệ thống nên nó giữa chúng cần một nơi để security có thể nhận diện được User truyền vào.
 * Spring chỉ định nghĩa interface và phải tự implements các lấy User
 * FLow: REQUETS --> Filter với token hợp lệ --(extracted username)--> UserDetailService(username) --(trả về một UserDetail [lấy User từ DB])--> ĐI vào security để verify, checkRole, và set SecurityContext
+
+## 10. 
+* AuthenticationManager không tự có nên phải khai báo @Bean trong SecurityConfig để Spring mới inject được vào AuthService.

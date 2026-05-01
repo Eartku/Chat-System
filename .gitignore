@@ -1,20 +1,16 @@
+# IDE files
 .idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code
+.vscode/
+
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# OS artifacts
 .DS_Store
-
-src/target/
-src/**/target/
-src/.mvn/wrapper/maven-wrapper.jar
-
-src/.idea/
-src/*.iml
-src/*.ipr
-src/*.iws
-src/.classpath
-src/.factorypath
-src/.project
-src/.settings/
-src/.apt_generated/
-src/.springBeans
-src/.sts4-cache/
-src/.vscode/
 

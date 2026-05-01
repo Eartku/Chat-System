@@ -1,0 +1,45 @@
+@baseUrl = http://localhost:8080
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJodXlwcm8xMjMiLCJpYXQiOjE3Nzc2NTAxOTMsImV4cCI6MTc3NzczNjU5M30.v-CFhjoxBPuq9a3F-v1JPvMq7fgcc9Xqm6DFu3NpMdM
+### 1. ĐĂNG KÝ (Register) - Thành công
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "huypro123",
+  "password": "password123",
+  "email": "huy@example.com"
+}
+
+### 2. ĐĂNG KÝ (Register) - Lỗi Validation (Email sai định dạng)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "huypro123",
+  "password": "password123",
+  "email": "huy-not-email"
+}
+
+### 3. ĐĂNG NHẬP (Login) - Lấy Token
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "huypro123",
+  "password": "password123"
+}
+
+### 4. XEM DANH SÁCH HỘI THOẠI (Cần Token)
+GET {{baseUrl}}/api/conversations
+Authorization: Bearer {{token}}
+
+### 5. LẤY THÔNG TIN USER (Cần Token)
+GET {{baseUrl}}/api/user
+Authorization: Bearer {{token}}
+
+### 6. ĐĂNG XUẤT (Logout - Cần Token)
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{token}}
+
+### 7. KIỂM TRA SECURITY (Truy cập không Token - Mong đợi 401/403)
+GET {{baseUrl}}/api/user

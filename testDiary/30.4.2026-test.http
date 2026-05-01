@@ -1,0 +1,169 @@
+@baseUrl = http://localhost:8080
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJodXlwcm8xMjMiLCJpYXQiOjE3Nzc2NTAxOTMsImV4cCI6MTc3NzczNjU5M30.v-CFhjoxBPuq9a3F-v1JPvMq7fgcc9Xqm6DFu3NpMdM
+
+# --- QUẢN LÝ USER ---
+
+### 1. Create user Alice
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "username": "alice_test",
+  "password": "password123",
+  "email": "alice_test@example.com"
+}
+
+### 2. Create user Bob
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "username": "bob_test",
+  "password": "password123",
+  "email": "bob_test@example.com"
+}
+
+### 3. Create user Charlie
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "username": "charlie_test",
+  "password": "password123",
+  "email": "charlie_test@example.com"
+}
+
+### 4. Get all users (Để xem ID chính xác của Alice, Bob, Charlie)
+GET {{baseUrl}}/api/user
+
+# --- QUẢN LÝ CONVERSATION ---
+# Lưu ý: Thay đổi các ID 1, 2, 3 bên dưới cho đúng với kết quả ở mục 4
+
+@aliceId = 1
+@bobId = 2
+@charlieId = 3
+@convoId = 1
+@groupId = 2
+@messageId = 1
+
+### 5. Create private conversation Alice - Bob
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "type": "PRIVATE",
+  "name": null,
+  "imgUrl": null,
+  "memberIds": [{{aliceId}}, {{bobId}}]
+}
+
+### 6. Get all conversations
+GET {{baseUrl}}/api/conversations
+Authorization: Bearer {{token}}
+
+### 7. Get conversation detail (Dùng biến convoId)
+GET {{baseUrl}}/api/conversations/{{convoId}}
+Authorization: Bearer {{token}}
+
+# --- QUẢN LÝ TIN NHẮN ---
+
+### 8. Send message from Alice
+POST {{baseUrl}}/api/conversations/{{convoId}}/messages
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "senderId": {{aliceId}},
+  "content": "I love you, Bob!"
+}
+
+### 9. Send message from Bob
+POST {{baseUrl}}/api/conversations/{{convoId}}/messages
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "senderId": {{bobId}},
+  "content": "I love you, too!"
+}
+
+### 10. Get messages in conversation
+GET {{baseUrl}}/api/conversations/{{convoId}}/messages
+Authorization: Bearer {{token}}
+
+### 11. Update message
+PATCH {{baseUrl}}/api/messages/{{messageId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "content": "I love you so much, edited"
+}
+
+### 12. Mark message as read
+PATCH {{baseUrl}}/api/messages/{{messageId}}/read
+Authorization: Bearer {{token}}
+
+### 13. Soft delete message
+DELETE {{baseUrl}}/api/messages/{{messageId}}
+Authorization: Bearer {{token}}
+
+# --- GROUP CONVERSATION ---
+
+### 14. Create group conversation Alice - Bob
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "type": "GROUP",
+  "name": "Test Group",
+  "imgUrl": null,
+  "memberIds": [{{aliceId}}, {{bobId}}]
+}
+
+### 15. Add Charlie to group (Dùng groupId)
+PUT {{baseUrl}}/api/conversations/{{groupId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Test Group",
+  "imgUrl": null,
+  "addMemberIds": [{{charlieId}}],
+  "removeMemberIds": []
+}
+
+### 16. Send group message from Charlie
+POST {{baseUrl}}/api/conversations/{{groupId}}/messages
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "senderId": {{charlieId}},
+  "content": "Hello Skibidi Sigma Guys!"
+}
+
+# --- NEGATIVE TESTS ---
+
+### 17. Duplicate private conversation (Should return 409)
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "type": "PRIVATE",
+  "memberIds": [{{aliceId}}, {{bobId}}]
+}
+
+### 18. Charlie sends message to group before being a member (Should return 400)
+# (Thực hiện bước này TRƯỚC bước 15)
+POST {{baseUrl}}/api/conversations/{{groupId}}/messages
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "senderId": {{charlieId}},
+  "content": "I should not be allowed here"
+}
