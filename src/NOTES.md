@@ -73,7 +73,7 @@ Role trong User khác với Role trong cuộc hội thoại:
 
 ## 5. ConversationResponse và ConversationSummaryResponse, MemberResponse
 * ConversationResponse lưu phản hồi đầy đủ của một cuộc hội thoại, gồm cả danh sách các thành viên
-* ConversationSummaryResponse chỉ lưu thông tin cơ bản của một cuộc hội thoại để load ở trang chủ (không gồm danh sách thành viên -> tránh query lấy danh sách nhiều lần)
+* ConversationSummaryResponse chỉ lưu thông tin cơ bản của một cuộc hội thoại để load ở trang chủ (không gồm danh sách thành viên -> tránh query lấy danh sách nhiều lần) tránh N+1 Problem
 * MemberResponse lưu thông tin của member trong một cuộc hội thoại - chỉ có yêu cầu thêm hoặc xóa (POST và DELETE trên Bảng trung gian)
 
 ## 6. Message API phải dựa theo Conversation
@@ -89,4 +89,18 @@ Luồng từ JWT:
 Flow:  Tạo token (JWT Service) --> Filter (Nhận tokem và nhận diện currentUser) ---> Đưa vào controller để thao tác tiếp
 * Token key được sinh ra: Flow: String → byte[] → Key → dùng để .signWith(...) :
 với getSignKey() = tạo khóa, generateToken() = dùng chìa khóa để ký token
-*
+* Filter là nơi để kiểm tra token hợp lệ rồi mới cho phép đi vào controller
+```
+    REGISTER
+    Client → POST /auth/register → hash password → lưu DB
+
+    LOGIN
+    Client → POST /auth/login → verify password → tạo JWT → trả token
+
+    MỌI REQUEST SAU
+    Client → Header: Bearer <token> → JwtAuthFilter → Controller
+```
+## 9. UserDetailsServive: là cầu nối giúp hệ thống lấy thông tin user từ DB để phục vụ xác thực (authentication).
+* SpringSecurity không biết cách lấy User từ hệ thống nên nó giữa chúng cần một nơi để security có thể nhận diện được User truyền vào.
+* Spring chỉ định nghĩa interface và phải tự implements các lấy User
+* FLow: REQUETS --> Filter với token hợp lệ --(extracted username)--> UserDetailService(username) --(trả về một UserDetail [lấy User từ DB])--> ĐI vào security để verify, checkRole, và set SecurityContext
