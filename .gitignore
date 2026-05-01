@@ -1,16 +1,66 @@
-# IDE files
+# === Java / Maven ===
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/wrapper/maven-wrapper.jar
+.mtj.tmp/
+
+# === IDE - IntelliJ ===
 .idea/
 *.iws
 *.iml
 *.ipr
+out/
+gen/
 
-# VS Code
+# === IDE - VS Code ===
 .vscode/
+*.code-workspace
+.history/
 
-# Maven
+# === IDE - Eclipse ===
+.settings/
+.classpath
+.project
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+
+# === Hệ điều hành & Log ===
+.DS_Store
+.DS_Store?
+ehcmd.obj
+Thumbs.db
+*.log
+temp/
+tmp/
+
+# === Phụ trợ (Nếu có dùng) ===
+.env
+.env.local
+
+# === Maven Specific ===
 target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mtj.tmp/
+
+# === Maven Wrapper ===
+# Thường thì chúng ta NÊN giữ lại mvnw và .mvn/ để người khác tải code về là chạy được ngay.
+# Nhưng nếu bạn muốn loại bỏ các file tạm của wrapper:
 .mvn/wrapper/maven-wrapper.jar
 
-# OS artifacts
-.DS_Store
-
+# Loại bỏ log của Maven
+mvnw.cmd.log
+mvnw.log
