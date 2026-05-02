@@ -1,26 +1,19 @@
-# Getting Started
+# Hướng dẫn nhanh cho Chat-System
 
-### Reference Documentation
-For further reference, please consider the following sections:
-
-* [Official Apache Maven documentation](https://maven.apache.org/guides/index.html)
-* [Spring Boot Maven Plugin Reference Guide](https://docs.spring.io/spring-boot/4.0.6/maven-plugin)
-* [Create an OCI image](https://docs.spring.io/spring-boot/4.0.6/maven-plugin/build-image.html)
-* [Spring Data JPA](https://docs.spring.io/spring-boot/4.0.6/reference/data/sql.html#data.sql.jpa-and-spring-data)
+## Tài liệu tham khảo chính
+* [Apache Maven Guide](https://maven.apache.org/guides/index.html)
+* [Spring Boot Maven Plugin](https://docs.spring.io/spring-boot/4.0.6/maven-plugin)
+* [Spring Boot Data JPA](https://docs.spring.io/spring-boot/4.0.6/reference/data/sql.html#data.sql.jpa-and-spring-data)
 * [Spring Web](https://docs.spring.io/spring-boot/4.0.6/reference/web/servlet.html)
-* [WebSocket](https://docs.spring.io/spring-boot/4.0.6/reference/messaging/websockets.html)
+* [Spring WebSocket](https://docs.spring.io/spring-boot/4.0.6/reference/messaging/websockets.html)
 
-### Guides
-The following guides illustrate how to use some features concretely:
+## Hướng dẫn liên quan
+* [Sử dụng JPA với Spring Boot](https://spring.io/guides/gs/accessing-data-jpa/)
+* [Kết nối MySQL với Spring Boot](https://spring.io/guides/gs/accessing-data-mysql/)
+* [Xây dựng RESTful API](https://spring.io/guides/gs/rest-service/)
+* [Sử dụng WebSocket với Spring](https://spring.io/guides/gs/messaging-stomp-websocket/)
 
-* [Accessing Data with JPA](https://spring.io/guides/gs/accessing-data-jpa/)
-* [Accessing data with MySQL](https://spring.io/guides/gs/accessing-data-mysql/)
-* [Building a RESTful Web Service](https://spring.io/guides/gs/rest-service/)
-* [Serving Web Content with Spring MVC](https://spring.io/guides/gs/serving-web-content/)
-* [Building REST services with Spring](https://spring.io/guides/tutorials/rest/)
-* [Using WebSocket to build an interactive web application](https://spring.io/guides/gs/messaging-stomp-websocket/)
-
-### Maven Parent overrides
+## Ghi chú dự án
 
 Due to Maven's design, elements are inherited from the parent POM to the project POM.
 While most of the inheritance is fine, it also inherits unwanted elements like `<license>` and `<developers>` from the parent.

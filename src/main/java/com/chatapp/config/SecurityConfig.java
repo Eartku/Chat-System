@@ -16,6 +16,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import com.chatapp.filter.JwtAuthFilter;
 import com.chatapp.services.auth.CustomUserDetailsService;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -49,6 +51,10 @@ public class SecurityConfig {
             )
             .userDetailsService(customUserDetailsService)   // dùng DB thật
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .exceptionHandling(ex -> ex
+            .authenticationEntryPoint((request, response, authException) -> {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+            }))
             .build();
     }
 }

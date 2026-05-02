@@ -1,9 +1,5 @@
 package com.chatapp.services.conversation;
 
-import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -13,7 +9,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.chatapp.dto.conversation.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.chatapp.dto.conversation.ConversationCreateRequest;
+import com.chatapp.dto.conversation.ConversationResponse;
+import com.chatapp.dto.conversation.ConversationSummaryResponse;
+import com.chatapp.dto.conversation.ConversationUpdateRequest;
 import com.chatapp.exceptions.BadRequestException;
 import com.chatapp.exceptions.DuplicateResourceException;
 import com.chatapp.exceptions.ResourceNotFoundException;
@@ -27,6 +29,7 @@ import com.chatapp.models.User;
 import com.chatapp.repositories.ConversationMemberRepository;
 import com.chatapp.repositories.ConversationRepository;
 import com.chatapp.repositories.UserRepository;
+import com.chatapp.services.auth.AuthService;
 
 @Service
 @Transactional(readOnly = true)
@@ -35,45 +38,54 @@ public class ConversationServiceImpl implements ConversationService {
     private final ConversationRepository conversationRepository;
     private final ConversationMemberRepository conversationMemberRepository;
     private final UserRepository userRepository;
+    private final AuthService authService;
 
     public ConversationServiceImpl(
             ConversationRepository conversationRepository,
             ConversationMemberRepository conversationMemberRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            AuthService authService) {
         this.conversationRepository = conversationRepository;
         this.conversationMemberRepository = conversationMemberRepository;
         this.userRepository = userRepository;
+        this.authService = authService;
     }
+
+    // ==================== PUBLIC METHODS ====================
 
     @Override
     public List<ConversationSummaryResponse> getAllConversation() {
-        List<Conversation> convs = conversationRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt"));
-        List<ConversationSummaryResponse> responses = new ArrayList<>();
-        for (Conversation c : convs) {
-            responses.add(ConversationMapper.toSummary(c));
-        }
-        return responses;
+        User currentUser = authService.getCurrentUserEntity();
+        return conversationRepository.findByUserId(currentUser.getUserId())
+                .stream()
+                .map(ConversationMapper::toSummary)
+                .toList();
     }
 
     @Override
     public ConversationResponse getConversationById(Long id) {
+        User currentUser = authService.getCurrentUserEntity();
         Conversation conv = findConversationOrThrow(id);
+        ensureCurrentUserIsMember(id, currentUser.getUserId()); // chỉ cần là member
         return ConversationMapper.toResponse(conv, getMemberById(id));
     }
 
     @Transactional
     @Override
     public ConversationResponse createConversation(ConversationCreateRequest request) {
-        if (request == null) {
-            throw new BadRequestException("Request body is required");
-        }
+        if (request == null) throw new BadRequestException("Request body is required");
 
         ConversationType type = request.type();
-        if (type == null) {
-            throw new BadRequestException("Conversation type is required");
-        }
+        if (type == null) throw new BadRequestException("Conversation type is required");
+
+        User currentUser = authService.getCurrentUserEntity();
 
         List<Long> memberIds = requireMemberIds(request.memberIds(), "memberIds");
+
+        if (memberIds.contains(currentUser.getUserId())) {
+            throw new BadRequestException("memberIds cannot contain yourself");
+        }
+
         validateMemberCount(type, memberIds);
 
         String name = normalizeText(request.name());
@@ -86,37 +98,35 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         List<User> users = findUsersOrThrow(memberIds);
+
         Conversation conversation = ConversationMapper.requestToEntity(request);
         conversation.setName(name);
         conversation.setImage(normalizeText(request.imgUrl()));
+        Conversation savedConv = conversationRepository.save(conversation);
 
-        Conversation savedConversation = conversationRepository.save(conversation);
         List<ConversationMember> members = new ArrayList<>();
-        for (int i = 0; i < users.size(); i++) {
-            MemberRole role = type == ConversationType.GROUP && i == 0
-                    ? MemberRole.ADMIN
-                    : MemberRole.MEMBER;
-            members.add(new ConversationMember(savedConversation, users.get(i), role));
+        members.add(new ConversationMember(savedConv, currentUser, MemberRole.ADMIN)); // current user là ADMIN
+        for (User user : users) {
+            members.add(new ConversationMember(savedConv, user, MemberRole.MEMBER));
         }
-
         conversationMemberRepository.saveAll(members);
-        return ConversationMapper.toResponse(savedConversation, getMemberById(savedConversation.getConvId()));
+
+        return ConversationMapper.toResponse(savedConv, getMemberById(savedConv.getConvId()));
     }
 
     @Transactional
     @Override
     public ConversationResponse updateConversationById(Long id, ConversationUpdateRequest request) {
-        if (request == null) {
-            throw new BadRequestException("Request body is required");
-        }
+        if (request == null) throw new BadRequestException("Request body is required");
+
+        User currentUser = authService.getCurrentUserEntity();
+        ensureCurrentUserIsAdmin(id, currentUser.getUserId()); // chỉ ADMIN mới update được
 
         Conversation conversation = findConversationOrThrow(id);
 
         if (request.name() != null) {
             String name = normalizeText(request.name());
-            if (name == null) {
-                throw new BadRequestException("Conversation name cannot be blank");
-            }
+            if (name == null) throw new BadRequestException("Conversation name cannot be blank");
             conversation.setName(name);
         }
 
@@ -131,28 +141,46 @@ public class ConversationServiceImpl implements ConversationService {
             updateMembers(conversation, addMemberIds, removeMemberIds);
         }
 
-        Conversation savedConversation = conversationRepository.save(conversation);
-        return ConversationMapper.toResponse(savedConversation, getMemberById(id));
+        return ConversationMapper.toResponse(conversationRepository.save(conversation), getMemberById(id));
     }
 
     @Transactional
     @Override
     public void deleteConversationById(Long id) {
+        User currentUser = authService.getCurrentUserEntity();
+        ensureCurrentUserIsAdmin(id, currentUser.getUserId()); // chỉ ADMIN mới xóa được
+
         Conversation conversation = findConversationOrThrow(id);
         conversationMemberRepository.deleteAll(getMemberById(id));
         conversationRepository.delete(conversation);
     }
 
-    public List<ConversationMember> getMemberById(Long id) {
+    // ==================== PRIVATE HELPERS ====================
+
+    private List<ConversationMember> getMemberById(Long id) {
         return conversationMemberRepository.findByConversation_ConvId(id);
     }
 
     private Conversation findConversationOrThrow(Long id) {
-        if (id == null) {
-            throw new BadRequestException("Conversation id is required");
-        }
+        if (id == null) throw new BadRequestException("Conversation id is required");
         return conversationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + id));
+    }
+
+    private void ensureCurrentUserIsMember(Long convId, Long userId) {
+        ConversationMemberId memberId = new ConversationMemberId(convId, userId);
+        if (!conversationMemberRepository.existsById(memberId)) {
+            throw new BadRequestException("You are not a member of this conversation");
+        }
+    }
+
+    private void ensureCurrentUserIsAdmin(Long convId, Long userId) {
+        ConversationMemberId memberId = new ConversationMemberId(convId, userId);
+        ConversationMember member = conversationMemberRepository.findById(memberId)
+                .orElseThrow(() -> new BadRequestException("You are not a member of this conversation"));
+        if (!MemberRole.ADMIN.equals(member.getRole())) {
+            throw new BadRequestException("Only admin can perform this action");
+        }
     }
 
     private List<Long> requireMemberIds(List<Long> memberIds, String fieldName) {
@@ -163,62 +191,47 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     private List<Long> normalizeMemberIds(List<Long> memberIds, String fieldName) {
-        if (memberIds == null) {
-            return List.of();
-        }
+        if (memberIds == null) return List.of();
 
         LinkedHashSet<Long> uniqueIds = new LinkedHashSet<>();
-        for (Long memberId : memberIds) {
-            if (memberId == null) {
-                throw new BadRequestException(fieldName + " cannot contain null");
-            }
-            if (!uniqueIds.add(memberId)) {
-                throw new BadRequestException(fieldName + " cannot contain duplicate user id: " + memberId);
-            }
+        for (Long id : memberIds) {
+            if (id == null) throw new BadRequestException(fieldName + " cannot contain null");
+            if (!uniqueIds.add(id)) throw new BadRequestException(fieldName + " cannot contain duplicate user id: " + id);
         }
         return new ArrayList<>(uniqueIds);
     }
 
     private void validateMemberCount(ConversationType type, List<Long> memberIds) {
-        if (type == ConversationType.PRIVATE && memberIds.size() != 2) {
-            throw new BadRequestException("Private conversation must have exactly 2 members");
+        if (type == ConversationType.PRIVATE && memberIds.size() != 1) {
+            throw new BadRequestException("Private conversation must have exactly 1 other member");
         }
-
-        if (type == ConversationType.GROUP && memberIds.size() < 2) {
-            throw new BadRequestException("Group conversation must have at least 2 members");
+        if (type == ConversationType.GROUP && memberIds.size() < 1) {
+            throw new BadRequestException("Group conversation must have at least 1 other member");
         }
     }
 
     private List<User> findUsersOrThrow(List<Long> userIds) {
-        if (userIds.isEmpty()) {
-            return List.of();
-        }
+        if (userIds.isEmpty()) return List.of();
 
         Map<Long, User> usersById = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getUserId, Function.identity()));
-        List<Long> missingIds = userIds.stream()
-                .filter(userId -> !usersById.containsKey(userId))
-                .toList();
 
-        if (!missingIds.isEmpty()) {
-            throw new ResourceNotFoundException("User not found: " + missingIds.get(0));
-        }
+        userIds.stream()
+                .filter(id -> !usersById.containsKey(id))
+                .findFirst()
+                .ifPresent(id -> { throw new ResourceNotFoundException("User not found: " + id); });
 
-        return userIds.stream()
-                .map(usersById::get)
-                .toList();
+        return userIds.stream().map(usersById::get).toList();
     }
 
     private boolean hasPrivateConversationWithMembers(List<Long> memberIds) {
         Set<Long> targetIds = new HashSet<>(memberIds);
-
         return conversationMemberRepository.findByUser_UserIdIn(targetIds).stream()
-                .filter(member -> member.getConversation().getType() == ConversationType.PRIVATE)
+                .filter(m -> m.getConversation().getType() == ConversationType.PRIVATE)
                 .collect(Collectors.groupingBy(
-                        member -> member.getConversation().getConvId(),
-                        Collectors.mapping(member -> member.getUser().getUserId(), Collectors.toSet())))
-                .values()
-                .stream()
+                        m -> m.getConversation().getConvId(),
+                        Collectors.mapping(m -> m.getUser().getUserId(), Collectors.toSet())))
+                .values().stream()
                 .anyMatch(existingIds -> existingIds.equals(targetIds));
     }
 
@@ -234,22 +247,19 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         Long conversationId = conversation.getConvId();
-        List<ConversationMember> currentMembers = getMemberById(conversationId);
-        Set<Long> currentMemberIds = currentMembers.stream()
-                .map(member -> member.getUser().getUserId())
+        Set<Long> currentMemberIds = getMemberById(conversationId).stream()
+                .map(m -> m.getUser().getUserId())
                 .collect(Collectors.toSet());
 
-        for (Long userId : removeMemberIds) {
-            if (!currentMemberIds.contains(userId)) {
-                throw new ResourceNotFoundException("Conversation member not found: " + userId);
-            }
-        }
+        removeMemberIds.stream()
+                .filter(id -> !currentMemberIds.contains(id))
+                .findFirst()
+                .ifPresent(id -> { throw new ResourceNotFoundException("Conversation member not found: " + id); });
 
-        for (Long userId : addMemberIds) {
-            if (currentMemberIds.contains(userId)) {
-                throw new DuplicateResourceException("User already in conversation: " + userId);
-            }
-        }
+        addMemberIds.stream()
+                .filter(currentMemberIds::contains)
+                .findFirst()
+                .ifPresent(id -> { throw new DuplicateResourceException("User already in conversation: " + id); });
 
         Set<Long> nextMemberIds = new HashSet<>(currentMemberIds);
         nextMemberIds.removeAll(removeMemberIds);
@@ -258,20 +268,20 @@ public class ConversationServiceImpl implements ConversationService {
             throw new BadRequestException("Group conversation must have at least 2 members");
         }
 
-        List<User> usersToAdd = findUsersOrThrow(addMemberIds);
-
         if (!removeMemberIds.isEmpty()) {
-            List<ConversationMemberId> idsToRemove = removeMemberIds.stream()
-                    .map(userId -> new ConversationMemberId(conversationId, userId))
-                    .toList();
-            conversationMemberRepository.deleteAllById(idsToRemove);
+            conversationMemberRepository.deleteAllById(
+                removeMemberIds.stream()
+                        .map(id -> new ConversationMemberId(conversationId, id))
+                        .toList()
+            );
         }
 
-        if (!usersToAdd.isEmpty()) {
-            List<ConversationMember> membersToAdd = usersToAdd.stream()
-                    .map(user -> new ConversationMember(conversation, user, MemberRole.MEMBER))
-                    .toList();
-            conversationMemberRepository.saveAll(membersToAdd);
+        if (!addMemberIds.isEmpty()) {
+            conversationMemberRepository.saveAll(
+                findUsersOrThrow(addMemberIds).stream()
+                        .map(user -> new ConversationMember(conversation, user, MemberRole.MEMBER))
+                        .toList()
+            );
         }
 
         ensureGroupHasAdmin(conversationId);
@@ -279,20 +289,15 @@ public class ConversationServiceImpl implements ConversationService {
 
     private void ensureGroupHasAdmin(Long conversationId) {
         List<ConversationMember> members = getMemberById(conversationId);
-        boolean hasAdmin = members.stream()
-                .anyMatch(member -> MemberRole.ADMIN.equals(member.getRole()));
-
+        boolean hasAdmin = members.stream().anyMatch(m -> MemberRole.ADMIN.equals(m.getRole()));
         if (!hasAdmin && !members.isEmpty()) {
-            ConversationMember firstMember = members.get(0);
-            firstMember.setRole(MemberRole.ADMIN);
-            conversationMemberRepository.save(firstMember);
+            ConversationMember first = members.get(0);
+            first.setRole(MemberRole.ADMIN);
+            conversationMemberRepository.save(first);
         }
     }
 
     private String normalizeText(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 }

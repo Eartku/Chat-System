@@ -1,38 +1,37 @@
 # Chat-System
 
-Backend Spring Boot cho du an chat.
+Backend Spring Boot cho dự án chat.
 
-## Yeu cau
+## Yêu cầu
 
 - Java 21
-- Maven Wrapper (`src/mvnw.cmd`)
-- MySQL neu chay profile `dev`
+- Maven Wrapper (`mvnw` / `mvnw.cmd`)
+- MySQL nếu chạy profile `dev`
 
-## Chay test
+## Chạy test
 
-Test dung profile `test` voi H2 in-memory nen khong can MySQL:
+Ứng dụng sử dụng profile `test` với H2 in-memory nên không cần MySQL để chạy test:
 
 ```powershell
-cd src
+cd d:\Chat-System
 .\mvnw.cmd test
 ```
 
-## Chay ung dung local
+## Chạy ứng dụng local
 
-Mac dinh app dung profile `dev` va doc cau hinh MySQL tu bien moi truong hoac fallback local:
+Mặc định ứng dụng sử dụng profile `dev` và đọc cấu hình kết nối MySQL từ biến môi trường:
 
 - `DB_URL`
 - `DB_USERNAME`
 - `DB_PASSWORD`
 
-Vi du:
+Ví dụ:
 
 ```powershell
-cd src
+cd d:\Chat-System
 $env:DB_URL="jdbc:mysql://localhost:3306/chat_system?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
 $env:DB_USERNAME="root"
 $env:DB_PASSWORD="root"
 .\mvnw.cmd spring-boot:run
 ```
 
-Neu chua co MySQL, ban van co the tiep tuc phat trien phan co ban va chay test truoc.

@@ -3,6 +3,7 @@ package com.chatapp.services.auth;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import com.chatapp.dto.auth.LoginRequest;
 import com.chatapp.dto.auth.LoginResponse;
 import com.chatapp.dto.auth.RegisterRequest;
+import com.chatapp.dto.user.UserResponse;
 import com.chatapp.exceptions.ResourceNotFoundException;
 import com.chatapp.models.User;
 import com.chatapp.repositories.UserRepository;
@@ -41,7 +43,7 @@ public class AuthService {
         String email = request.email();
 
         if (userRepository.existsByUsername(username) || userRepository.existsByEmail(email)) {
-            throw new RuntimeException("Username hoặc email đã tồn tại");
+            throw new RuntimeException("Username or Email is existed");
         }
 
         User user = new User(username, passwordEncoder.encode(password), email);
@@ -63,5 +65,31 @@ public class AuthService {
 
         String token = jwtService.generateToken(username);
         return new LoginResponse(user.getUsername(), user.getEmail(), token, user.getRole());
+    }
+
+    @Transactional
+    public UserResponse getCurrentUser(){
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException("User not found!"));
+
+          return new UserResponse(
+            user.getUserId(),
+            user.getUsername(),
+            user.getEmail(),
+            user.getDisplayName(),
+            user.getAvatarUrl(),
+            user.isOnline(),
+            user.getLastSeenAt(),
+            user.getCreatedAt(),
+            user.getRole().name(),
+            user.isActive()
+        );
+    }
+
+    @Transactional
+    public User getCurrentUserEntity(){
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException("User not found!"));
     }
 }

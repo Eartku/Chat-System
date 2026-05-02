@@ -3,6 +3,9 @@ package com.chatapp.services.message;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.chatapp.dto.message.MessageCreateRequest;
 import com.chatapp.dto.message.MessageResponse;
 import com.chatapp.dto.message.MessageUpdateRequest;
@@ -12,13 +15,11 @@ import com.chatapp.mappers.MessageMapper;
 import com.chatapp.models.Conversation;
 import com.chatapp.models.ConversationMemberId;
 import com.chatapp.models.Message;
+import com.chatapp.models.User;
 import com.chatapp.repositories.ConversationMemberRepository;
 import com.chatapp.repositories.ConversationRepository;
 import com.chatapp.repositories.MessageRepository;
-import com.chatapp.repositories.UserRepository;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.chatapp.services.auth.AuthService;
 
 @Service
 @Transactional(readOnly = true)
@@ -27,17 +28,18 @@ public class MessageServiceImpl implements MessageService{
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
     private final ConversationMemberRepository conversationMemberRepository;
-    private final UserRepository userRepository;
+    private final AuthService authService;
 
     public MessageServiceImpl(
             MessageRepository messageRepository,
             ConversationRepository conversationRepository,
             ConversationMemberRepository conversationMemberRepository,
-            UserRepository userRepository) {
+            AuthService authService
+        ) {
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.conversationMemberRepository = conversationMemberRepository;
-        this.userRepository = userRepository;
+        this.authService = authService;
     }
 
     @Override
@@ -50,12 +52,14 @@ public class MessageServiceImpl implements MessageService{
     @Transactional
     @Override
     public MessageResponse sendMessage(Long conversationId, MessageCreateRequest request) {
+        User currentUser = authService.getCurrentUserEntity();
+        Long senderId = currentUser.getUserId();
         Conversation conversation = findConversationOrThrow(conversationId);
-        validateCreateRequest(request);
-        ensureUserExists(request.senderId());
-        ensureUserIsConversationMember(conversationId, request.senderId());
+   
 
-        Message message = MessageMapper.requestToEntity(conversationId, request);
+        ensureUserIsConversationMember(conversationId, senderId);
+
+        Message message = MessageMapper.requestToEntity(conversationId, senderId, request);
         message.setContent(normalizeContent(request.content()));
         Message savedMessage = messageRepository.save(message);
 
@@ -84,7 +88,13 @@ public class MessageServiceImpl implements MessageService{
     @Transactional
     @Override
     public void deleteMessageById(Long messageId) {
+
         Message message = findMessageOrThrow(messageId);
+
+        User currentUser = authService.getCurrentUserEntity();
+        if (!message.getSenderId().equals(currentUser.getUserId())) {
+            throw new BadRequestException("You are not the owner of this message");
+        }
         ensureMessageIsNotDeleted(message);
 
         message.setDeleted(true);
@@ -96,6 +106,11 @@ public class MessageServiceImpl implements MessageService{
     public MessageResponse markMessageAsRead(Long messageId) {
         Message message = findMessageOrThrow(messageId);
         ensureMessageIsNotDeleted(message);
+
+        User currentUser = authService.getCurrentUserEntity();
+        if (!message.getSenderId().equals(currentUser.getUserId())) {
+            throw new BadRequestException("You are not the owner of this message");
+        }
 
         message.setReadAt(LocalDateTime.now());
         return MessageMapper.toResponse(messageRepository.save(message));
@@ -115,22 +130,6 @@ public class MessageServiceImpl implements MessageService{
         }
         return messageRepository.findById(messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("Message not found: " + messageId));
-    }
-
-    private void validateCreateRequest(MessageCreateRequest request) {
-        if (request == null) {
-            throw new BadRequestException("Request body is required");
-        }
-        if (request.senderId() == null) {
-            throw new BadRequestException("Sender id is required");
-        }
-        normalizeContent(request.content());
-    }
-
-    private void ensureUserExists(Long userId) {
-        if (!userRepository.existsById(userId)) {
-            throw new ResourceNotFoundException("User not found: " + userId);
-        }
     }
 
     private void ensureUserIsConversationMember(Long conversationId, Long userId) {
