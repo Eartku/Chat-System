@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // không dùng session
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll() // login/register tự do
+                .requestMatchers("/ws/**").permitAll()
                 .anyRequest().authenticated()               // còn lại cần token
             )
             .userDetailsService(customUserDetailsService)   // dùng DB thật

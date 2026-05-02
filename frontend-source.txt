@@ -1,0 +1,2250 @@
+--- package.json ---
+{
+  "name": "chat-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^1.9.5",
+    "@stomp/stompjs": "^7.0.0",
+    "axios": "^1.5.1",
+    "bootstrap": "^5.3.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-redux": "^8.1.3",
+    "react-router-dom": "^6.16.0",
+    "sockjs-client": "^1.6.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.1"
+  }
+}
+
+--- vite.config.js ---
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  // 1. Đặt 'define' ở cấp cao nhất (ngang hàng với plugins, server)
+  define: {
+    global: 'window',
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false
+      },
+      '/ws': {
+        target: 'http://localhost:8080',
+        ws: true,
+        changeOrigin: true,
+        // global: 'window', <--- XÓA DÒNG NÀY Ở ĐÂY
+        secure: false
+      }
+    }
+  }
+});
+
+--- index.html ---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat System</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="src/main.jsx"></script>
+  </body>
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+</html>
+
+--- src/main.jsx ---
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { Provider } from 'react-redux';
+import { BrowserRouter } from 'react-router-dom';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './index.css';
+import App from './App.jsx';
+import store from './store/index.js';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <Provider store={store}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </Provider>
+  </React.StrictMode>
+);
+
+--- src/App.jsx ---
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import LoginPage from './pages/LoginPage.jsx';
+import RegisterPage from './pages/RegisterPage.jsx';
+import ChatPage from './pages/ChatPage.jsx';
+import { fetchMe, logout } from './store/authSlice.js';
+
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+function App() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { token, isAuthenticated, user } = useSelector((state) => state.auth);
+
+  useEffect(() => {
+    if (token && (!user || !user.id)) {
+      dispatch(fetchMe()).unwrap().catch(() => dispatch(logout()));
+    }
+  }, [dispatch, token, user]);
+
+  useEffect(() => {
+    if (!token && !['/login', '/register'].includes(location.pathname)) {
+      navigate('/login');
+    }
+  }, [navigate, token, location.pathname]);
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <ChatPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/*" element={<Navigate to={token ? '/chat' : '/login'} replace />} />
+    </Routes>
+  );
+}
+
+export default App;
+
+--- src/index.css ---
+/* ===== CHAT APP — DESIGN SYSTEM ===== */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400&display=swap');
+
+:root {
+  --bg:          #f5f4f2;
+  --surface:     #ffffff;
+  --surface-2:   #f0efed;
+  --border:      #e8e6e2;
+  --border-soft: #f0efed;
+
+  --accent:      #4f6ef7;
+  --accent-dark: #3a57e0;
+  --accent-bg:   #eef0fd;
+
+  --text-primary:   #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary:  #a0a0a0;
+
+  --own-bubble:    #4f6ef7;
+  --own-text:      #ffffff;
+  --other-bubble:  #f0efed;
+  --other-text:    #1a1a1a;
+
+  --danger:  #e55353;
+  --success: #34c98b;
+
+  --radius-sm: 8px;
+  --radius:    14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow:    0 4px 16px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.06);
+
+  --font: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  --sidebar-w: 320px;
+  --header-h:  64px;
+  --input-h:   72px;
+
+  --transition: 150ms cubic-bezier(.4,0,.2,1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+/* ===== LAYOUT ===== */
+.chat-root {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.chat-topbar {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.chat-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-topbar__logo {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.chat-topbar__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -.02em;
+}
+
+.chat-topbar__subtitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.chat-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ===== SIDEBAR ===== */
+.chat-sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-header__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-tertiary);
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* ===== CONVERSATION ITEM ===== */
+.conv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  transition: background var(--transition);
+  position: relative;
+  border-radius: var(--radius);
+  margin: 0 4px;
+  width: calc(100% - 8px);
+}
+
+.conv-item:hover {
+  background: var(--surface-2);
+}
+
+.conv-item.active {
+  background: var(--accent-bg);
+}
+
+.conv-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+.conv-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.conv-avatar.accent { background: var(--accent-bg); color: var(--accent); }
+.conv-avatar.green  { background: #e8f8f2; color: #34c98b; }
+.conv-avatar.orange { background: #fff3e8; color: #f5a623; }
+.conv-avatar.purple { background: #f3eeff; color: #9b6ef7; }
+.conv-avatar.red    { background: #feeaea; color: #e55353; }
+
+.conv-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.conv-info { flex: 1; min-width: 0; }
+
+.conv-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.conv-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-item.active .conv-name { color: var(--accent-dark); font-weight: 600; }
+
+.conv-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.conv-preview {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== CHAT MAIN ===== */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.chat-header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.chat-header__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.chat-header__info { flex: 1; min-width: 0; }
+
+.chat-header__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -.01em;
+}
+
+.chat-header__sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* ===== MESSAGES ===== */
+.messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.message-row.own { flex-direction: row-reverse; }
+
+.message-sender-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.message-bubble {
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  line-height: 1.55;
+  position: relative;
+  word-break: break-word;
+  animation: msg-in 200ms cubic-bezier(.34,1.56,.64,1) both;
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.message-bubble.own {
+  background: var(--own-bubble);
+  color: var(--own-text);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.message-bubble.other {
+  background: var(--surface);
+  color: var(--other-text);
+  border-bottom-left-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.message-bubble.deleted {
+  opacity: .55;
+  font-style: italic;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+
+.message-time {
+  font-size: 10px;
+  opacity: .6;
+  font-family: var(--font-mono);
+}
+
+.message-edited {
+  font-size: 10px;
+  opacity: .5;
+}
+
+.date-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 10px;
+}
+
+.date-separator::before,
+.date-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.date-separator span {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+/* ===== INPUT ===== */
+.chat-input-bar {
+  padding: 12px 24px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chat-input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 8px 8px 8px 16px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.chat-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, .12);
+}
+
+.chat-textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  min-height: 22px;
+  max-height: 120px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.chat-textarea::placeholder { color: var(--text-tertiary); }
+
+.chat-textarea:disabled { opacity: .4; cursor: not-allowed; }
+
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--transition), transform var(--transition), opacity var(--transition);
+  color: white;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: var(--accent-dark);
+  transform: scale(1.05);
+}
+
+.send-btn:active:not(:disabled) { transform: scale(.95); }
+
+.send-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.btn-outline:hover { background: var(--surface-2); border-color: var(--text-tertiary); color: var(--text-primary); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+  padding: 7px 12px;
+}
+
+.btn-ghost:hover { background: var(--surface-2); color: var(--text-primary); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: rgba(229, 83, 83, .2);
+}
+
+.btn-danger:hover { background: #feeaea; border-color: var(--danger); }
+
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  justify-content: center;
+}
+
+/* ===== MODAL ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 200ms ease both;
+}
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  animation: slide-up 250ms cubic-bezier(.34,1.56,.64,1) both;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -.02em;
+}
+
+.modal-body { padding: 20px 24px; }
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+.close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  transition: all var(--transition);
+}
+
+.close-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+
+/* ===== FORM ===== */
+.form-group { margin-bottom: 16px; }
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 6px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 9px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--surface);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  outline: none;
+}
+
+.form-control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,110,247,.12);
+}
+
+.form-control::placeholder { color: var(--text-tertiary); }
+
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6b6b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.form-hint {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 5px;
+}
+
+.type-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.type-option {
+  flex: 1;
+  padding: 9px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: center;
+}
+
+.type-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* ===== AUTH PAGES ===== */
+.auth-root {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+}
+
+.auth-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 36px;
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid var(--border);
+}
+
+.auth-logo {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.03em;
+  margin-bottom: 6px;
+}
+
+.auth-sub {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+.auth-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13.5px;
+}
+
+.auth-link:hover { text-decoration: underline; }
+
+.auth-footer {
+  text-align: center;
+  margin-top: 20px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.alert {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.alert-danger {
+  background: #feeaea;
+  color: var(--danger);
+  border: 1px solid rgba(229,83,83,.2);
+}
+
+/* ===== EMPTY / LOADING STATES ===== */
+.state-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 13.5px;
+}
+
+.state-center svg { opacity: .3; }
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== EMPTY CHAT ===== */
+.empty-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-tertiary);
+}
+
+.empty-chat__icon {
+  width: 56px;
+  height: 56px;
+  background: var(--surface-2);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.empty-chat__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty-chat__sub {
+  font-size: 13px;
+  text-align: center;
+  max-width: 300px;
+}
+
+--- src/hooks/useWebSocket.js ---
+// useWebSocket.js
+import { useEffect, useRef, useState } from 'react';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
+
+export default function useWebSocket(conversationId, token, onMessage) {
+  const clientRef = useRef(null);
+  const [connected, setConnected] = useState(false);
+  const onMessageRef = useRef(onMessage);
+
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
+
+  useEffect(() => {
+    if (!conversationId || !token) {
+      console.debug('[WebSocket] skipped activation', { conversationId, hasToken: !!token });
+      return;
+    }
+
+    console.debug('[WebSocket] activating', { conversationId });
+    const client = new Client({
+      webSocketFactory: () => {
+        console.debug('[WebSocket] creating SockJS connection to /ws');
+        return new SockJS('/ws');
+      },
+      connectHeaders: { Authorization: `Bearer ${token}` },
+      reconnectDelay: 5000,
+      debug: (msg) => {
+        console.debug('[WebSocket STOMP]', msg);
+      },
+      onConnect: () => {
+        setConnected(true);
+        console.debug('[WebSocket] connected', { conversationId });
+
+        const subscription = client.subscribe(`/topic/conversations/${conversationId}`, (message) => {
+          console.debug('[WebSocket] message received', { conversationId, body: message.body });
+          if (message.body) {
+            try {
+              const payload = JSON.parse(message.body);
+              onMessageRef.current(payload);
+            } catch (error) {
+              console.error('[WebSocket] parse error', error, { raw: message.body });
+            }
+          }
+        });
+
+        clientRef.current = { client, subscription };
+      },
+      onStompError: (frame) => {
+        console.error('[WebSocket] STOMP error', frame);
+      },
+      onWebSocketError: (error) => {
+        console.error('[WebSocket] WebSocket error', error);
+      },
+      onDisconnect: () => {
+        setConnected(false);
+        console.debug('[WebSocket] disconnected');
+      },
+    });
+
+    client.activate();
+
+    return () => {
+      console.debug('[WebSocket] cleanup', { conversationId });
+      setConnected(false);
+      clientRef.current?.subscription?.unsubscribe();
+      client.deactivate();
+    };
+  }, [conversationId, token]);
+
+  return connected;
+}
+
+--- src/api/axiosInstance.js ---
+import axios from 'axios';
+
+const API_BASE_URL = '/api';
+
+const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+function clearAuth() {
+  localStorage.removeItem('token');
+  window.location.href = '/login';
+}
+
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  console.debug('[Axios] request', {
+    method: config.method,
+    url: config.baseURL + config.url,
+    hasToken: !!token,
+    headers: {
+      ...config.headers,
+      Authorization: config.headers.Authorization ? 'Bearer *****' : undefined
+    }
+  });
+  return config;
+});
+
+axiosInstance.interceptors.response.use(
+  (response) => {
+    console.debug('[Axios] response', {
+      method: response.config.method,
+      url: response.config.baseURL + response.config.url,
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
+  (error) => {
+    console.error('[Axios] response error', {
+      method: error.config?.method,
+      url: error.config?.baseURL + error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    if (error.response?.status === 401) {
+      clearAuth();
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default axiosInstance;
+
+--- src/api/authApi.js ---
+import axiosInstance from './axiosInstance.js';
+
+export function login(payload) {
+  return axiosInstance.post('/auth/login', payload).then((res) => res.data);
+}
+
+export function register(payload) {
+  return axiosInstance.post('/auth/register', payload).then((res) => res.data);
+}
+
+export function fetchMe() {
+  return axiosInstance.get('/auth/me').then((res) => res.data);
+}
+
+--- src/api/conversationApi.js ---
+import axiosInstance from './axiosInstance.js';
+
+export function fetchConversations() {
+  return axiosInstance.get('/conversations').then((res) => res.data);
+}
+
+export function fetchConversationDetail(conversationId) {
+  return axiosInstance.get(`/conversations/${conversationId}`).then((res) => res.data);
+}
+
+export function createConversation(payload) {
+  return axiosInstance.post('/conversations', payload).then((res) => res.data);
+}
+
+export function updateConversation(conversationId, payload) {
+  return axiosInstance.put(`/conversations/${conversationId}`, payload).then((res) => res.data);
+}
+
+export function deleteConversation(conversationId) {
+  return axiosInstance.delete(`/conversations/${conversationId}`).then((res) => res.data);
+}
+
+--- src/api/messageApi.js ---
+import axiosInstance from './axiosInstance.js';
+
+export function fetchMessages(conversationId) {
+  return axiosInstance.get(`/conversations/${conversationId}/messages`).then((res) => res.data);
+}
+
+export function sendMessage(conversationId, payload) {
+  return axiosInstance.post(`/conversations/${conversationId}/messages`, payload).then((res) => res.data);
+}
+
+export function editMessage(messageId, payload) {
+  return axiosInstance.patch(`/messages/${messageId}`, payload).then((res) => res.data);
+}
+
+export function markMessageRead(messageId) {
+  return axiosInstance.patch(`/messages/${messageId}/read`).then((res) => res.data);
+}
+
+export function deleteMessage(messageId) {
+  return axiosInstance.delete(`/messages/${messageId}`).then((res) => res.data);
+}
+
+--- src/store/index.js ---
+import { configureStore } from '@reduxjs/toolkit';
+import authReducer from './authSlice.js';
+import conversationReducer from './conversationSlice.js';
+import messageReducer from './messageSlice.js';
+
+const store = configureStore({
+  reducer: {
+    auth: authReducer,
+    conversation: conversationReducer,
+    message: messageReducer
+  }
+});
+
+export default store;
+
+--- src/store/authSlice.js ---
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { login as loginApi, register as registerApi, fetchMe as fetchMeApi } from '../api/authApi.js';
+
+const token = localStorage.getItem('token');
+
+export const login = createAsyncThunk('auth/login', async (payload, { rejectWithValue }) => {
+  try {
+    const data = await loginApi(payload);
+    localStorage.setItem('token', data.token);
+    return data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data || error.message);
+  }
+});
+
+export const register = createAsyncThunk('auth/register', async (payload, { rejectWithValue }) => {
+  try {
+    const data = await registerApi(payload);
+    localStorage.setItem('token', data.token);
+    return data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data || error.message);
+  }
+});
+
+export const fetchMe = createAsyncThunk('auth/fetchMe', async (_, { rejectWithValue }) => {
+  try {
+    const data = await fetchMeApi();
+    return data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data || error.message);
+  }
+});
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState: {
+    token,
+    user: null,
+    isAuthenticated: Boolean(token),
+    loading: false,
+    error: null
+  },
+  reducers: {
+    logout(state) {
+      state.token = null;
+      state.user = null;
+      state.isAuthenticated = false;
+      state.error = null;
+      localStorage.removeItem('token');
+    }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(login.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(login.fulfilled, (state, action) => {
+        state.loading = false;
+        state.token = action.payload.token;
+        state.user = {
+          id: action.payload.id,
+          username: action.payload.username,
+          email: action.payload.email,
+          role: action.payload.role
+        };
+        state.isAuthenticated = true;
+      })
+      .addCase(login.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Login failed';
+      })
+      .addCase(register.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(register.fulfilled, (state, action) => {
+        state.loading = false;
+        state.token = action.payload.token;
+        state.user = {
+          username: action.payload.username,
+          email: action.payload.email,
+          role: action.payload.role
+        };
+        state.isAuthenticated = true;
+      })
+      .addCase(register.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Registration failed';
+      })
+      .addCase(fetchMe.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMe.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload;
+        state.isAuthenticated = true;
+      })
+      .addCase(fetchMe.rejected, (state, action) => {
+        state.loading = false;
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.error = action.payload || 'Unable to fetch user';
+        localStorage.removeItem('token');
+      });
+  }
+});
+
+export const { logout } = authSlice.actions;
+export default authSlice.reducer;
+
+--- src/store/conversationSlice.js ---
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { fetchConversations as fetchConversationsApi, fetchConversationDetail as fetchConversationDetailApi, createConversation as createConversationApi } from '../api/conversationApi.js';
+
+export const fetchConversations = createAsyncThunk(
+  'conversation/fetchConversations',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await fetchConversationsApi();
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+export const fetchConversationDetail = createAsyncThunk(
+  'conversation/fetchConversationDetail',
+  async (conversationId, { rejectWithValue }) => {
+    try {
+      return await fetchConversationDetailApi(conversationId);
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+export const createConversation = createAsyncThunk(
+  'conversation/createConversation',
+  async (payload, { rejectWithValue }) => {
+    try {
+      return await createConversationApi(payload);
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+const conversationSlice = createSlice({
+  name: 'conversation',
+  initialState: {
+    conversations: [],
+    selectedConversation: null,
+    selectedConversationDetail: null,
+    loading: false,
+    error: null
+  },
+  reducers: {
+    selectConversation(state, action) {
+      state.selectedConversation = action.payload;
+      state.selectedConversationDetail = null;
+    },
+    updateConversationLastMessage(state, action) {
+      const { conversationId, content, createdAt } = action.payload;
+      const key = Number(conversationId);
+      const idx = state.conversations.findIndex((c) => Number(c.id) === key);
+      if (idx !== -1) {
+        state.conversations[idx].lastMessage = content;
+        state.conversations[idx].updatedAt = createdAt || new Date().toISOString();
+      }
+      if (state.selectedConversationDetail && Number(state.selectedConversationDetail.id) === key) {
+        state.selectedConversationDetail.lastMessage = content;
+        state.selectedConversationDetail.updatedAt = createdAt || new Date().toISOString();
+      }
+      state.conversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchConversations.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchConversations.fulfilled, (state, action) => {
+        state.loading = false;
+        state.conversations = action.payload.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      })
+      .addCase(fetchConversations.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot load conversations';
+      })
+      .addCase(fetchConversationDetail.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchConversationDetail.fulfilled, (state, action) => {
+        state.loading = false;
+        state.selectedConversationDetail = action.payload;
+      })
+      .addCase(fetchConversationDetail.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot load conversation detail';
+      })
+      .addCase(createConversation.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createConversation.fulfilled, (state, action) => {
+        state.loading = false;
+        state.conversations = [action.payload, ...state.conversations].sort(
+          (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+        );
+        state.selectedConversation = action.payload.id;
+      })
+      .addCase(createConversation.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot create conversation';
+      });
+  }
+});
+
+export const { selectConversation, updateConversationLastMessage } = conversationSlice.actions;
+export default conversationSlice.reducer;
+
+--- src/store/messageSlice.js ---
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { fetchMessages as fetchMessagesApi, sendMessage as sendMessageApi } from '../api/messageApi.js';
+
+const toKey = (id) => Number(id);
+
+export const fetchMessages = createAsyncThunk(
+  'message/fetchMessages',
+  async (conversationId, { rejectWithValue }) => {
+    console.debug('[messageSlice] fetchMessages start', { conversationId });
+    try {
+      const result = await fetchMessagesApi(conversationId);
+      console.debug('[messageSlice] fetchMessages success', { conversationId, length: result.length });
+      return result;
+    } catch (error) {
+      console.error('[messageSlice] fetchMessages error', {
+        conversationId,
+        message: error.message,
+        response: error.response?.data
+      });
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+export const sendMessage = createAsyncThunk(
+  'message/sendMessage',
+  async ({ conversationId, content }, { rejectWithValue }) => {
+    console.debug('[messageSlice] sendMessage start', { conversationId, content });
+    try {
+      const result = await sendMessageApi(conversationId, { content });
+      console.debug('[messageSlice] sendMessage success', { conversationId, messId: result.messId });
+      return result;
+    } catch (error) {
+      console.error('[messageSlice] sendMessage error', {
+        conversationId,
+        content,
+        message: error.message,
+        response: error.response?.data
+      });
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+const messageSlice = createSlice({
+  name: 'message',
+  initialState: {
+    messagesByConversation: {},
+    loading: false,
+    error: null
+  },
+  reducers: {
+    addMessage(state, action) {
+      const key = toKey(action.payload.conversationId);
+      if (!state.messagesByConversation[key]) {
+        state.messagesByConversation[key] = [];
+      }
+      const exists = state.messagesByConversation[key].some(
+        (m) => m.messId === action.payload.messId
+      );
+      if (!exists) {
+        state.messagesByConversation[key].push(action.payload);
+      }
+    },
+    setMessages(state, action) {
+      const { conversationId, messages } = action.payload;
+      state.messagesByConversation[toKey(conversationId)] = messages;
+    },
+    clearMessages(state, action) {
+      delete state.messagesByConversation[toKey(action.payload)];
+    }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchMessages.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMessages.fulfilled, (state, action) => {
+        state.loading = false;
+        const key = toKey(action.meta.arg);
+        state.messagesByConversation[key] = action.payload;
+      })
+      .addCase(fetchMessages.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot load messages';
+      })
+      .addCase(sendMessage.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(sendMessage.fulfilled, (state, action) => {
+        state.loading = false;
+        const key = toKey(action.meta.arg.conversationId);
+        if (!state.messagesByConversation[key]) {
+          state.messagesByConversation[key] = [];
+        }
+        const exists = state.messagesByConversation[key].some(
+          (m) => m.messId === action.payload.messId
+        );
+        if (!exists) {
+          state.messagesByConversation[key].push(action.payload);
+        }
+      })
+      .addCase(sendMessage.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot send message';
+      });
+  }
+});
+
+export const { addMessage, setMessages, clearMessages } = messageSlice.actions;
+export default messageSlice.reducer;
+
+--- src/pages/LoginPage.jsx ---
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
+import { login } from '../store/authSlice.js';
+
+export default function LoginPage() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { isAuthenticated, loading, error } = useSelector((state) => state.auth);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/chat');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await dispatch(login({ username, password }));
+  };
+
+  return (
+    <div className="container py-5">
+      <div className="row justify-content-center">
+        <div className="col-md-5">
+          <div className="card shadow-sm">
+            <div className="card-body">
+              <h2 className="card-title mb-3">Đăng nhập</h2>
+              <form onSubmit={handleSubmit}>
+                <div className="mb-3">
+                  <label className="form-label">Username</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                {error && <div className="alert alert-danger">{JSON.stringify(error)}</div>}
+                <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+                  {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+                </button>
+              </form>
+              <div className="mt-3 text-center">
+                <Link to="/register">Chưa có tài khoản? Đăng ký</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- src/pages/RegisterPage.jsx ---
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
+import { register } from '../store/authSlice.js';
+
+export default function RegisterPage() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { isAuthenticated, loading, error } = useSelector((state) => state.auth);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/chat');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await dispatch(register({ username, email, password }));
+  };
+
+  return (
+    <div className="container py-5">
+      <div className="row justify-content-center">
+        <div className="col-md-5">
+          <div className="card shadow-sm">
+            <div className="card-body">
+              <h2 className="card-title mb-3">Đăng ký</h2>
+              <form onSubmit={handleSubmit}>
+                <div className="mb-3">
+                  <label className="form-label">Username</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                {error && <div className="alert alert-danger">{JSON.stringify(error)}</div>}
+                <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+                  {loading ? 'Đang tạo...' : 'Đăng ký'}
+                </button>
+              </form>
+              <div className="mt-3 text-center">
+                <Link to="/login">Đã có tài khoản? Đăng nhập</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- src/pages/ChatPage.jsx ---
+import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { logout } from '../store/authSlice.js';
+import {
+  fetchConversations,
+  selectConversation,
+  fetchConversationDetail,
+  createConversation,
+  updateConversationLastMessage,
+} from '../store/conversationSlice.js';
+import { fetchMessages, sendMessage, addMessage } from '../store/messageSlice.js';
+import ConversationList from '../components/ConversationList.jsx';
+import MessageList from '../components/MessageList.jsx';
+import MessageInput from '../components/MessageInput.jsx';
+import CreateConversationModal from '../components/CreateConversationModal.jsx';
+import useWebSocket from '../hooks/useWebSocket.js';
+
+export default function ChatPage() {
+  const dispatch = useDispatch();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const { user, token } = useSelector((s) => s.auth);
+  const {
+    conversations,
+    selectedConversation,
+    selectedConversationDetail,
+    loading: conversationsLoading,
+  } = useSelector((s) => s.conversation);
+  const { messagesByConversation, loading: messagesLoading } = useSelector((s) => s.message);
+
+  const messages = useMemo(
+    () => messagesByConversation[selectedConversation] || [],
+    [messagesByConversation, selectedConversation]
+  );
+
+  const selectedConversationData = useMemo(() => {
+    if (selectedConversationDetail) return selectedConversationDetail;
+    return conversations.find((c) => c.id === selectedConversation) || null;
+  }, [selectedConversationDetail, conversations, selectedConversation]);
+
+  const handleSelectConversation = useCallback(
+    (id) => {
+      console.debug('[ChatPage] selectConversation', { id });
+      dispatch(selectConversation(id));
+      dispatch(fetchConversationDetail(id));
+      dispatch(fetchMessages(id));
+    },
+    [dispatch]
+  );
+
+  useEffect(() => {
+    dispatch(fetchConversations());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!selectedConversation && conversations.length > 0) {
+      handleSelectConversation(conversations[0].id);
+    }
+  }, [conversations, selectedConversation, handleSelectConversation]);
+
+  const handleSendMessage = async (content) => {
+    if (!selectedConversation) {
+      console.warn('[ChatPage] sendMessage blocked, no conversation selected', { content });
+      return;
+    }
+    console.debug('[ChatPage] sendMessage', { conversationId: selectedConversation, content });
+    const result = await dispatch(sendMessage({ conversationId: selectedConversation, content }));
+    if (result.error) {
+      console.error('[ChatPage] sendMessage failed', result.error);
+    }
+  };
+
+  const handleNewWebSocketMessage = useCallback(
+    (payload) => {
+      if (!payload.conversationId) return;
+      const conversationIdString = String(payload.conversationId);
+      const selectedIdString = String(selectedConversation || '');
+      dispatch(addMessage(payload));
+      dispatch(
+        updateConversationLastMessage({
+          conversationId: payload.conversationId,
+          content: payload.deleted ? 'Đã xóa' : payload.content,
+          createdAt: payload.createdAt
+        })
+      );
+      if (conversationIdString !== selectedIdString) {
+        return;
+      }
+    },
+    [dispatch, selectedConversation]
+  );
+
+  useWebSocket(selectedConversation, token, handleNewWebSocketMessage);
+
+  const handleLogout = () => {
+    dispatch(logout());
+    window.location.href = '/login';
+  };
+
+  const conversationLabel = useMemo(() => {
+    if (!selectedConversationData) return 'Chọn cuộc trò chuyện';
+    if (selectedConversationData.type === 'GROUP') {
+      return selectedConversationData.name || 'Nhóm chat';
+    }
+    if (selectedConversationData.name) return selectedConversationData.name;
+    if (selectedConversationData.members?.length) {
+      const other = selectedConversationData.members.find((m) => m.userId !== user?.id);
+      return other?.username || 'Cuộc trò chuyện riêng';
+    }
+    return 'Cuộc trò chuyện riêng';
+  }, [selectedConversationData, user]);
+
+  const avatarLetter = conversationLabel ? conversationLabel.charAt(0).toUpperCase() : '?';
+
+  return (
+    <div className="chat-root">
+      {/* Top bar */}
+      <header className="chat-topbar">
+        <div className="chat-topbar__brand">
+          <div className="chat-topbar__logo">💬</div>
+          <div>
+            <div className="chat-topbar__title">ChatApp</div>
+            <div className="chat-topbar__subtitle">{user?.username}</div>
+          </div>
+        </div>
+        <div className="chat-topbar__actions">
+          <button className="btn btn-outline btn-sm" onClick={() => setShowCreateModal(true)}>
+            + Cuộc trò chuyện
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={handleLogout}>
+            Đăng xuất
+          </button>
+        </div>
+      </header>
+
+      {/* Body */}
+      <div className="chat-body">
+        {/* Sidebar */}
+        <aside className="chat-sidebar">
+          <ConversationList
+            conversations={conversations}
+            selectedId={selectedConversation}
+            onSelectConversation={handleSelectConversation}
+            loading={conversationsLoading}
+          />
+        </aside>
+
+        {/* Main */}
+        <main className="chat-main">
+          {/* Chat header */}
+          <div className="chat-header">
+            {selectedConversationData ? (
+              <>
+                <div className="chat-header__avatar">{avatarLetter}</div>
+                <div className="chat-header__info">
+                  <div className="chat-header__name">{conversationLabel}</div>
+                  <div className="chat-header__sub">
+                    {selectedConversationData?.lastMessage || 'Bắt đầu cuộc trò chuyện'}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="chat-header__name" style={{ color: 'var(--text-tertiary)' }}>
+                Chọn một cuộc trò chuyện
+              </div>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div className="messages-area">
+            <MessageList
+              messages={messages}
+              currentUserId={user?.id}
+              loading={messagesLoading}
+            />
+          </div>
+
+          {/* Input */}
+          <MessageInput onSend={handleSendMessage} disabled={!selectedConversation} />
+        </main>
+      </div>
+
+      <CreateConversationModal
+        show={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={async (payload) => {
+          await dispatch(createConversation(payload));
+          setShowCreateModal(false);
+        }}
+        currentUserId={user?.id}
+      />
+    </div>
+  );
+}
+
+--- src/components/ConversationList.jsx ---
+import ConversationItem from './ConversationItem.jsx';
+
+export default function ConversationList({ conversations, selectedId, onSelectConversation, loading }) {
+  return (
+    <div className="chat-sidebar" style={{ width: '100%' }}>
+      <div className="sidebar-header">
+        <span className="sidebar-header__title">Tin nhắn</span>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+          {conversations.length > 0 ? `${conversations.length} cuộc trò chuyện` : ''}
+        </span>
+      </div>
+
+      <div className="sidebar-list">
+        {loading && (
+          <div className="state-center" style={{ padding: '32px 0' }}>
+            <div className="spinner" />
+            <span>Đang tải...</span>
+          </div>
+        )}
+
+        {!loading && conversations.length === 0 && (
+          <div className="state-center" style={{ padding: '40px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>💬</div>
+            <span>Chưa có cuộc trò chuyện nào</span>
+          </div>
+        )}
+
+        {conversations.map((conversation) => (
+          <ConversationItem
+            key={conversation.id}
+            conversation={conversation}
+            selected={conversation.id === selectedId}
+            onClick={() => onSelectConversation(conversation.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+--- src/components/ConversationItem.jsx ---
+// Màu avatar dựa theo hash tên để luôn nhất quán
+const AVATAR_COLORS = ['accent', 'green', 'orange', 'purple', 'red'];
+function getAvatarColor(name = '') {
+  let hash = 0;
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function getDisplayName(conversation) {
+  if (conversation.type === 'GROUP') return conversation.name || 'Nhóm chat';
+  return conversation.name || 'Tin nhắn riêng';
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+export default function ConversationItem({ conversation, selected, onClick }) {
+  const name = getDisplayName(conversation);
+  const color = getAvatarColor(name);
+
+  return (
+    <button
+      type="button"
+      className={`conv-item${selected ? ' active' : ''}`}
+      onClick={onClick}
+    >
+      <div className={`conv-avatar ${color}`}>
+        {conversation.image ? (
+          <img src={conversation.image} alt={name} />
+        ) : (
+          name.charAt(0).toUpperCase()
+        )}
+      </div>
+      <div className="conv-info">
+        <div className="conv-name-row">
+          <span className="conv-name">{name}</span>
+          <span className="conv-time">{formatTime(conversation.updatedAt)}</span>
+        </div>
+        <div className="conv-preview">{conversation.lastMessage || 'Chưa có tin nhắn'}</div>
+      </div>
+    </button>
+  );
+}
+
+--- src/components/MessageList.jsx ---
+import { useEffect, useRef } from 'react';
+import MessageItem from './MessageItem.jsx';
+
+function isSameDay(a, b) {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
+}
+
+function formatDateLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  if (isSameDay(iso, now)) return 'Hôm nay';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(iso, yesterday)) return 'Hôm qua';
+  return d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' });
+}
+
+export default function MessageList({ messages, currentUserId, loading }) {
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  if (loading) {
+    return (
+      <div className="state-center">
+        <div className="spinner" />
+        <span>Đang tải tin nhắn...</span>
+      </div>
+    );
+  }
+
+  if (messages.length === 0) {
+    return (
+      <div className="empty-chat">
+        <div className="empty-chat__icon">💬</div>
+        <div className="empty-chat__title">Chưa có tin nhắn</div>
+        <div className="empty-chat__sub">Hãy bắt đầu cuộc trò chuyện!</div>
+      </div>
+    );
+  }
+
+  const items = [];
+  let lastDate = null;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const msgDate = msg.createdAt;
+
+    if (!lastDate || !isSameDay(lastDate, msgDate)) {
+      items.push({ type: 'separator', label: formatDateLabel(msgDate), key: `sep-${msgDate}` });
+      lastDate = msgDate;
+    }
+
+    items.push({ type: 'message', msg, key: msg.messId || msg.id || `msg-${i}` });
+  }
+
+  return (
+    <>
+      {items.map((item) =>
+        item.type === 'separator' ? (
+          <div className="date-separator" key={item.key}>
+            <span>{item.label}</span>
+          </div>
+        ) : (
+          <MessageItem
+            key={item.key}
+            message={item.msg}
+            currentUserId={currentUserId}
+          />
+        )
+      )}
+      <div ref={bottomRef} />
+    </>
+  );
+}
+
+--- src/components/MessageItem.jsx ---
+function formatTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
+export default function MessageItem({ message, currentUserId }) {
+  const isOwn = message.senderId === currentUserId;
+  const isDeleted = message.deleted;
+  const content = isDeleted ? 'Tin nhắn đã bị xóa' : message.content;
+
+  return (
+    <div className={`message-row${isOwn ? ' own' : ''}`}>
+      {!isOwn && (
+        <div className="message-sender-avatar">
+          {message.senderName ? message.senderName.charAt(0).toUpperCase() : '?'}
+        </div>
+      )}
+
+      <div className={`message-bubble${isOwn ? ' own' : ' other'}${isDeleted ? ' deleted' : ''}`}>
+        {content}
+        <div className="message-meta">
+          {message.edited && !isDeleted && (
+            <span className="message-edited">đã sửa ·</span>
+          )}
+          <span className="message-time">{formatTime(message.createdAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- src/components/MessageInput.jsx ---
+import { useState, useRef } from 'react';
+
+const SendIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+
+export default function MessageInput({ onSend, disabled }) {
+  const [content, setContent] = useState('');
+  const textareaRef = useRef(null);
+
+  const submit = () => {
+    const text = content.trim();
+    if (!text || disabled) return;
+    onSend(text);
+    setContent('');
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
+  };
+
+  const handleChange = (e) => {
+    setContent(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
+  return (
+    <div className="chat-input-bar">
+      <div className="chat-input-wrap">
+        <textarea
+          ref={textareaRef}
+          className="chat-textarea"
+          rows={1}
+          placeholder={disabled ? 'Chọn cuộc trò chuyện...' : 'Nhập tin nhắn... (Enter để gửi)'}
+          value={content}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          className="send-btn"
+          onClick={submit}
+          disabled={!content.trim() || disabled}
+          title="Gửi (Enter)"
+        >
+          <SendIcon />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+--- src/components/CreateConversationModal.jsx ---
+import { useState, useEffect } from 'react';
+
+const CloseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+export default function CreateConversationModal({ show, onClose, onCreate, currentUserId }) {
+  const [type, setType] = useState('PRIVATE');
+  const [name, setName] = useState('');
+  const [imgUrl, setImgUrl] = useState('');
+  const [memberIds, setMemberIds] = useState('');
+
+  useEffect(() => {
+    if (!show) {
+      setType('PRIVATE');
+      setName('');
+      setImgUrl('');
+      setMemberIds('');
+    }
+  }, [show]);
+
+  if (!show) return null;
+
+  const parseMemberIds = () =>
+    memberIds
+      .split(',')
+      .map((id) => Number(id.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0 && id !== currentUserId);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const payload = { type, memberIds: parseMemberIds() };
+    if (type === 'GROUP') {
+      payload.name = name.trim();
+      payload.imgUrl = imgUrl.trim() || undefined;
+    }
+    onCreate(payload);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-card">
+        <div className="modal-header">
+          <span className="modal-title">Tạo cuộc trò chuyện mới</span>
+          <button className="close-btn" onClick={onClose}><CloseIcon /></button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-group">
+              <label className="form-label">Loại cuộc trò chuyện</label>
+              <div className="type-toggle">
+                <button
+                  type="button"
+                  className={`type-option${type === 'PRIVATE' ? ' selected' : ''}`}
+                  onClick={() => setType('PRIVATE')}
+                >
+                  👤 Riêng tư
+                </button>
+                <button
+                  type="button"
+                  className={`type-option${type === 'GROUP' ? ' selected' : ''}`}
+                  onClick={() => setType('GROUP')}
+                >
+                  👥 Nhóm
+                </button>
+              </div>
+            </div>
+
+            {type === 'GROUP' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Tên nhóm</label>
+                  <input
+                    className="form-control"
+                    placeholder="Nhập tên nhóm..."
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Ảnh nhóm (URL)</label>
+                  <input
+                    className="form-control"
+                    placeholder="https://..."
+                    value={imgUrl}
+                    onChange={(e) => setImgUrl(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Member IDs</label>
+              <input
+                className="form-control"
+                placeholder="1, 2, 3"
+                value={memberIds}
+                onChange={(e) => setMemberIds(e.target.value)}
+                required
+              />
+              <p className="form-hint">Nhập ID cách nhau bằng dấu phẩy. Không cần nhập ID của bạn.</p>
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="btn btn-primary">Tạo cuộc trò chuyện</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

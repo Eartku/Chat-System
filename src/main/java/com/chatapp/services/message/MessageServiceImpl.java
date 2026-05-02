@@ -3,6 +3,7 @@ package com.chatapp.services.message;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,17 +30,20 @@ public class MessageServiceImpl implements MessageService{
     private final ConversationRepository conversationRepository;
     private final ConversationMemberRepository conversationMemberRepository;
     private final AuthService authService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public MessageServiceImpl(
             MessageRepository messageRepository,
             ConversationRepository conversationRepository,
             ConversationMemberRepository conversationMemberRepository,
-            AuthService authService
+            AuthService authService,
+            SimpMessagingTemplate messagingTemplate
         ) {
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.conversationMemberRepository = conversationMemberRepository;
         this.authService = authService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Override
@@ -48,14 +52,12 @@ public class MessageServiceImpl implements MessageService{
         List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(id);
         return MessageMapper.toResponseList(messages);
     }
-
     @Transactional
     @Override
     public MessageResponse sendMessage(Long conversationId, MessageCreateRequest request) {
         User currentUser = authService.getCurrentUserEntity();
         Long senderId = currentUser.getUserId();
         Conversation conversation = findConversationOrThrow(conversationId);
-   
 
         ensureUserIsConversationMember(conversationId, senderId);
 
@@ -66,7 +68,15 @@ public class MessageServiceImpl implements MessageService{
         conversation.setLastMessage(savedMessage.getContent());
         conversationRepository.save(conversation);
 
-        return MessageMapper.toResponse(savedMessage);
+        MessageResponse response = MessageMapper.toResponse(savedMessage);
+
+        // Broadcast cho tất cả client đang subscribe conversation này
+        messagingTemplate.convertAndSend(
+            "/topic/conversations/" + conversationId,
+            response
+        );
+
+        return response;
     }
 
     @Transactional
@@ -82,13 +92,20 @@ public class MessageServiceImpl implements MessageService{
         message.setContent(normalizeContent(request.content()));
         message.setEdited(true);
 
-        return MessageMapper.toResponse(messageRepository.save(message));
+        MessageResponse response = MessageMapper.toResponse(messageRepository.save(message));
+
+        // Thêm dòng này
+        messagingTemplate.convertAndSend(
+            "/topic/conversations/" + message.getConversationId(),
+            response
+        );
+
+        return response;
     }
 
     @Transactional
     @Override
     public void deleteMessageById(Long messageId) {
-
         Message message = findMessageOrThrow(messageId);
 
         User currentUser = authService.getCurrentUserEntity();
@@ -98,7 +115,13 @@ public class MessageServiceImpl implements MessageService{
         ensureMessageIsNotDeleted(message);
 
         message.setDeleted(true);
-        messageRepository.save(message);
+        Message saved = messageRepository.save(message);
+
+        // Thêm dòng này
+        messagingTemplate.convertAndSend(
+            "/topic/conversations/" + saved.getConversationId(),
+            MessageMapper.toResponse(saved)
+        );
     }
 
     @Transactional
