@@ -32,6 +32,7 @@ Thumbs.db
 # === App config (IMPORTANT) ===
 application.properties
 
-.testDiary/
-
+testDiary/
+postman/
+.postman/
 .yaml
