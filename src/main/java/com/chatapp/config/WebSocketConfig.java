@@ -10,8 +10,8 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
-    private WebSocketAuthConfig webSocketAuthConfig;
-    
+    private final WebSocketAuthConfig webSocketAuthConfig;
+
     public WebSocketConfig(WebSocketAuthConfig webSocketAuthConfig) {
         this.webSocketAuthConfig = webSocketAuthConfig;
     }
