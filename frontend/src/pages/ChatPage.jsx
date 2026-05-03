@@ -60,26 +60,13 @@ export default function ChatPage() {
   const handleSendMessage = async (content) => {
     if (!selectedConversation || !user) return;
 
-    const tempId = `temp-${Date.now()}`;
-    dispatch(addMessage({
-        messId: tempId,
-        conversationId: selectedConversation,
-        senderId: user.id,
-        senderName: user.username,
-        content,
-        createdAt: new Date().toISOString(),
-        deleted: false,
-        edited: false,
-    }));
-
     console.debug('[ChatPage] sendMessage', { conversationId: selectedConversation, content });
     const result = await dispatch(sendMessage({ conversationId: selectedConversation, content }));
 
     if (result.error) {
-        console.error('[ChatPage] sendMessage failed', result.error);
-        dispatch(removeMessage({ conversationId: selectedConversation, messId: tempId }));
+      console.error('[ChatPage] sendMessage failed', result.error);
     }
-};
+  };
 
   // ✅ FIX: Dùng String() để tránh type mismatch (WS trả string "1", Redux lưu number 1)
   const handleNewWebSocketMessage = useCallback(

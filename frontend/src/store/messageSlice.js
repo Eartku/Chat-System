@@ -28,7 +28,7 @@ export const sendMessage = createAsyncThunk(
     console.debug('[messageSlice] sendMessage start', { conversationId, content });
     try {
       const result = await sendMessageApi(conversationId, { content });
-      console.debug('[messageSlice] sendMessage success', { conversationId, messId: result.messId });
+      console.debug('[messageSlice] sendMessage success', { conversationId, id: result.id });
       return result;
     } catch (error) {
       console.error('[messageSlice] sendMessage error', {
@@ -55,9 +55,9 @@ const messageSlice = createSlice({
       if (!state.messagesByConversation[key]) {
         state.messagesByConversation[key] = [];
       }
-      // Tránh duplicate nếu WS và sendMessage.fulfilled cùng push
+      const messageId = action.payload.id || action.payload.messId;
       const exists = state.messagesByConversation[key].some(
-        (m) => m.messId === action.payload.messId
+        (m) => (m.id || m.messId) === messageId
       );
       if (!exists) {
         state.messagesByConversation[key].push(action.payload);
@@ -71,12 +71,12 @@ const messageSlice = createSlice({
       delete state.messagesByConversation[toKey(action.payload)];
     },
     removeMessage(state, action) {
-        const { conversationId, messId } = action.payload;
-        const key = toKey(conversationId);
-        if (state.messagesByConversation[key]) {
-            state.messagesByConversation[key] = state.messagesByConversation[key]
-            .filter((m) => m.messId !== messId);
-        }
+      const { conversationId, id } = action.payload;
+      const key = toKey(conversationId);
+      if (state.messagesByConversation[key]) {
+        state.messagesByConversation[key] = state.messagesByConversation[key]
+          .filter((m) => (m.id || m.messId) !== id);
+      }
     }
   },
   extraReducers: (builder) => {
@@ -85,7 +85,6 @@ const messageSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      
       .addCase(fetchMessages.fulfilled, (state, action) => {
         state.loading = false;
         const key = toKey(action.meta.arg);
@@ -105,8 +104,9 @@ const messageSlice = createSlice({
         if (!state.messagesByConversation[key]) {
           state.messagesByConversation[key] = [];
         }
+        const messageId = action.payload.id || action.payload.messId;
         const exists = state.messagesByConversation[key].some(
-          (m) => m.messId === action.payload.messId
+          (m) => (m.id || m.messId) === messageId
         );
         if (!exists) {
           state.messagesByConversation[key].push(action.payload);
@@ -119,5 +119,5 @@ const messageSlice = createSlice({
   }
 });
 
-export const { addMessage, setMessages, clearMessages } = messageSlice.actions;
+export const { addMessage, setMessages, clearMessages, removeMessage } = messageSlice.actions;
 export default messageSlice.reducer;

@@ -113,3 +113,12 @@ Luồng xác thực JWT:
 - Web server xử lý nhiều request đồng thời.
 - Nếu lưu User trong field toàn cục hoặc singleton, các request có thể ghi đè nhau.
 - Điều này gây lộ dữ liệu giữa người dùng A và B.
+
+## 12. Lỗi lưu ý khi thêm frontend check:
+* Lưu ý thêm broadcast cho các hàm gửi tin nhắn : MessageServiceImpl.sendMessage() chỉ save DB rồi return — không có convertAndSend nào cả. WebSocket connect thành công nhưng server không bao giờ gửi tin đến client.
+
+## 13. Fix realtime frontend
+* Frontend chỉ subscribe 1 topic/selectedConversation và reconnect khi đổi cuộc hội thoại.
+* Cập nhật `useWebSocket.js` để giữ kết nối STOMP ổn định, dùng heartbeat và resubscribe khi conversation thay đổi.
+* Chuẩn hóa message id trong `messageSlice.js` để tránh duplicate giữa REST Response và WS payload.
+* Loại bỏ optimistic temp message trong `ChatPage.jsx`, dùng server/WebSocket làm nguồn dữ liệu chính.
