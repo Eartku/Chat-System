@@ -1,7 +1,22 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { fetchMessages as fetchMessagesApi, sendMessage as sendMessageApi } from '../api/messageApi.js';
+import {
+  fetchMessages as fetchMessagesApi,
+  sendMessage as sendMessageApi,
+  deleteMessage as deleteMessageApi,
+  markMessageRead as markMessageReadApi
+} from '../api/messageApi.js';
 
 const toKey = (id) => Number(id);
+
+function updateMessageInState(state, conversationId, messageId, patch) {
+  const key = toKey(conversationId);
+  const messages = state.messagesByConversation[key];
+  if (!messages) return;
+  state.messagesByConversation[key] = messages.map((msg) => {
+    const id = msg.id || msg.messId;
+    return id === messageId ? { ...msg, ...patch } : msg;
+  });
+}
 
 export const fetchMessages = createAsyncThunk(
   'message/fetchMessages',
@@ -34,6 +49,46 @@ export const sendMessage = createAsyncThunk(
       console.error('[messageSlice] sendMessage error', {
         conversationId,
         content,
+        message: error.message,
+        response: error.response?.data
+      });
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+export const deleteMessage = createAsyncThunk(
+  'message/deleteMessage',
+  async ({ conversationId, messageId }, { rejectWithValue }) => {
+    console.debug('[messageSlice] deleteMessage start', { conversationId, messageId });
+    try {
+      await deleteMessageApi(messageId);
+      console.debug('[messageSlice] deleteMessage success', { conversationId, messageId });
+      return { conversationId, messageId };
+    } catch (error) {
+      console.error('[messageSlice] deleteMessage error', {
+        conversationId,
+        messageId,
+        message: error.message,
+        response: error.response?.data
+      });
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+export const markMessageRead = createAsyncThunk(
+  'message/markMessageRead',
+  async ({ conversationId, messageId }, { rejectWithValue }) => {
+    console.debug('[messageSlice] markMessageRead start', { conversationId, messageId });
+    try {
+      const result = await markMessageReadApi(messageId);
+      console.debug('[messageSlice] markMessageRead success', { conversationId, messageId });
+      return { conversationId, message: result };
+    } catch (error) {
+      console.error('[messageSlice] markMessageRead error', {
+        conversationId,
+        messageId,
         message: error.message,
         response: error.response?.data
       });
@@ -115,6 +170,30 @@ const messageSlice = createSlice({
       .addCase(sendMessage.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || 'Cannot send message';
+      })
+      .addCase(deleteMessage.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteMessage.fulfilled, (state, action) => {
+        state.loading = false;
+        updateMessageInState(state, action.payload.conversationId, action.payload.messageId, { deleted: true });
+      })
+      .addCase(deleteMessage.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot delete message';
+      })
+      .addCase(markMessageRead.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(markMessageRead.fulfilled, (state, action) => {
+        state.loading = false;
+        updateMessageInState(state, action.payload.conversationId, action.payload.message.id || action.payload.message.messId, action.payload.message);
+      })
+      .addCase(markMessageRead.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Cannot mark message as read';
       });
   }
 });

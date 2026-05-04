@@ -13,11 +13,13 @@ import ConversationList from '../components/ConversationList.jsx';
 import MessageList from '../components/MessageList.jsx';
 import MessageInput from '../components/MessageInput.jsx';
 import CreateConversationModal from '../components/CreateConversationModal.jsx';
+import SearchFriendsModal from '../components/SearchFriendsModal.jsx';
 import useWebSocket from '../hooks/useWebSocket.js';
 
 export default function ChatPage() {
   const dispatch = useDispatch();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const { user, token } = useSelector((s) => s.auth);
   const {
     conversations,
@@ -123,6 +125,9 @@ export default function ChatPage() {
           </div>
         </div>
         <div className="chat-topbar__actions">
+          <button className="btn btn-outline btn-sm" onClick={() => setShowSearchModal(true)}>
+            👥 Tìm bạn
+          </button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowCreateModal(true)}>
             + Cuộc trò chuyện
           </button>

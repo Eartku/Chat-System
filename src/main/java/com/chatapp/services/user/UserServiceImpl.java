@@ -85,6 +85,20 @@ public class UserServiceImpl implements UserService {
         userRepository.delete(user);
     }
 
+    @Transactional
+    @Override
+    public List<UserResponse> searchUser(String query){
+        String normalized = normalizeSearchText(query);
+        return userRepository.findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(normalized, normalized).stream().map(UserMapper::toResponse).toList();
+    }
+
+    private String normalizeSearchText(String value){
+        if(value==null || value.isBlank()){
+            throw new BadRequestException("Search query is required"); 
+        }
+        return value.trim();
+    }
+
     private User findUserOrThrow(Long id) {
         if (id == null) {
             throw new BadRequestException("User id is required");
