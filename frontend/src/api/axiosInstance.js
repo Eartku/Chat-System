@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = '/api';
+const AUTH_PAGES = ['/login', '/register'];
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -9,9 +10,17 @@ const axiosInstance = axios.create({
   }
 });
 
+function isLoginRequest(config) {
+  const method = config?.method?.toLowerCase();
+  const url = config?.url || '';
+  return method === 'post' && (url === '/auth/login' || url.endsWith('/auth/login'));
+}
+
 function clearAuth() {
   localStorage.removeItem('token');
-  window.location.href = '/login';
+  if (!AUTH_PAGES.includes(window.location.pathname)) {
+    window.location.href = '/login';
+  }
 }
 
 axiosInstance.interceptors.request.use((config) => {
@@ -49,7 +58,7 @@ axiosInstance.interceptors.response.use(
       data: error.response?.data,
       message: error.message
     });
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isLoginRequest(error.config)) {
       clearAuth();
     }
     return Promise.reject(error);

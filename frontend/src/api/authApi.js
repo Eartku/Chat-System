@@ -11,3 +11,7 @@ export function register(payload) {
 export function fetchMe() {
   return axiosInstance.get('/auth/me').then((res) => res.data);
 }
+
+export function logoutRequest() {
+  return axiosInstance.post('/auth/logout').then((res) => res.data);
+}

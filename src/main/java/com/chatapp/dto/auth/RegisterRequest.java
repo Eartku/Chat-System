@@ -17,5 +17,11 @@ public record RegisterRequest(
 
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
-    String email
+    String email,
+
+    @Size(max = 100, message = "Display name must be at most 100 characters")
+    String displayName,
+
+    @Size(max = 500, message = "Avatar URL must be at most 500 characters")
+    String avatarUrl
 ) {}

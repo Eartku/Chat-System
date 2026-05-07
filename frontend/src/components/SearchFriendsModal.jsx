@@ -1,52 +1,77 @@
-import { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
-import { createConversation } from '../store/conversationSlice.js';
+import { useEffect, useState } from 'react';
 import { searchUsers } from '../api/userApi.js';
+import { getErrorMessage } from '../utils/apiError.js';
+import { handleAvatarError, getResolvedAvatarUrl } from '../utils/avatar.js';
+import { getUserDisplayName } from '../utils/conversationDisplay.js';
 
-export default function SearchFriendsModal({ show, onClose, currentUserId }) {
-  const dispatch = useDispatch();
+export default function SearchFriendsModal({ show, onClose, currentUserId, onStartConversation }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [chatLoading, setChatLoading] = useState(null);
 
-  const handleSearch = async (value) => {
-    setQuery(value);
-    if (!value.trim()) {
+  useEffect(() => {
+    if (!show) {
+      setQuery('');
       setResults([]);
+      setLoading(false);
       setError(null);
-      return;
+      setChatLoading(null);
+    }
+  }, [show]);
+
+  useEffect(() => {
+    if (!show) {
+      return undefined;
     }
 
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await searchUsers(value.trim());
-      const filtered = data.filter((user) => user.userId !== currentUserId);
-      setResults(filtered);
-    } catch (err) {
-      console.error('[SearchFriendsModal] search error', err);
-      setError('Không thể tìm kiếm người dùng');
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
       setResults([]);
-    } finally {
       setLoading(false);
+      setError(null);
+      return undefined;
     }
-  };
+
+    let active = true;
+    const timeoutId = window.setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await searchUsers(normalizedQuery);
+        if (!active) return;
+        const filtered = data.filter((user) => Number(user.id) !== Number(currentUserId));
+        setResults(filtered);
+      } catch (err) {
+        if (!active) return;
+        console.error('[SearchFriendsModal] search error', err);
+        setResults([]);
+        setError('Không thể tìm kiếm người dùng lúc này.');
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentUserId, query, show]);
 
   const handleStartChat = async (user) => {
-    setChatLoading(user.userId);
+    setError(null);
+    setChatLoading(user.id);
     try {
-      await dispatch(createConversation({
-        type: 'PRIVATE',
-        memberIds: [user.userId]
-      }));
+      await onStartConversation(user);
       setQuery('');
       setResults([]);
       onClose();
     } catch (err) {
       console.error('[SearchFriendsModal] create chat error', err);
-      setError('Không thể tạo cuộc trò chuyện');
+      setError(getErrorMessage(err, 'Không thể tạo cuộc trò chuyện.'));
     } finally {
       setChatLoading(null);
     }
@@ -56,49 +81,64 @@ export default function SearchFriendsModal({ show, onClose, currentUserId }) {
 
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card" style={{ minWidth: '400px' }}>
+      <div className="modal-card finder-modal">
         <div className="modal-header">
-          <h2>Tìm kiếm bạn bè</h2>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <div>
+            <h2 className="modal-title">Tìm bạn</h2>
+            <p className="modal-subtitle">
+              Tìm theo username hoặc email và bắt đầu cuộc trò chuyện riêng nhanh hơn.
+            </p>
+          </div>
+          <button className="close-btn" onClick={onClose} aria-label="Đóng">
+            ×
+          </button>
         </div>
 
-        <div className="modal-body" style={{ padding: '20px' }}>
+        <div className="modal-body">
           <input
             type="text"
             className="search-input"
-            placeholder="Tìm theo tên hoặc email..."
+            placeholder="Nhập tên hoặc email để tìm..."
             value={query}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
+          <div className="search-panel__hint">Kết quả sẽ được lọc để không hiển thị chính bạn.</div>
 
-          {error && (
-            <div style={{ marginTop: '16px', padding: '10px', background: '#fee', color: '#c33', borderRadius: '8px' }}>
-              {error}
-            </div>
-          )}
+          {error && <div className="alert alert-danger modal-alert">{error}</div>}
 
           {loading && (
-            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <div className="search-panel__state">
               <div className="spinner" style={{ display: 'inline-block' }} />
-              <span style={{ marginLeft: '10px' }}>Đang tìm kiếm...</span>
+              <span>Đang tìm kiếm...</span>
             </div>
           )}
 
-          {!loading && results.length === 0 && query && (
-            <div style={{ marginTop: '20px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-              Không tìm thấy người dùng
+          {!loading && !query.trim() && (
+            <div className="search-panel__empty">
+              Nhập từ khóa để tìm bạn bè và tạo chat riêng trực tiếp từ danh sách kết quả.
             </div>
+          )}
+
+          {!loading && results.length === 0 && query.trim() && (
+            <div className="search-panel__empty">Không tìm thấy người dùng phù hợp.</div>
           )}
 
           {!loading && results.length > 0 && (
-            <div className="search-results" style={{ marginTop: '16px' }}>
+            <div className="search-results search-results--spacious">
               {results.map((user) => (
-                <div key={user.userId} className="search-result-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                    <div className="search-result-avatar">{user.username.charAt(0).toUpperCase()}</div>
+                <div key={user.id} className="search-result-item search-result-item--actionable">
+                  <div className="search-result-item__main">
+                    <div className="search-result-avatar">
+                      <img
+                        src={getResolvedAvatarUrl(user)}
+                        alt={getUserDisplayName(user)}
+                        onError={handleAvatarError}
+                      />
+                    </div>
                     <div className="search-result-info">
-                      <div className="search-result-name">{user.username}</div>
+                      <div className="search-result-name">{getUserDisplayName(user)}</div>
+                      {user.displayName && <div className="search-result-meta">@{user.username}</div>}
                       <div className="search-result-email">{user.email}</div>
                     </div>
                   </div>
@@ -106,10 +146,9 @@ export default function SearchFriendsModal({ show, onClose, currentUserId }) {
                     type="button"
                     className="btn btn-primary btn-sm"
                     onClick={() => handleStartChat(user)}
-                    disabled={chatLoading === user.userId}
-                    style={{ marginLeft: '10px' }}
+                    disabled={chatLoading === user.id}
                   >
-                    {chatLoading === user.userId ? 'Đang tạo...' : 'Chat'}
+                    {chatLoading === user.id ? 'Đang tạo...' : 'Nhắn tin'}
                   </button>
                 </div>
               ))}

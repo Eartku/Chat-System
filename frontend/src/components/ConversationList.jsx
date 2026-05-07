@@ -1,6 +1,12 @@
 import ConversationItem from './ConversationItem.jsx';
 
-export default function ConversationList({ conversations, selectedId, onSelectConversation, loading }) {
+export default function ConversationList({
+  conversations,
+  selectedId,
+  onSelectConversation,
+  loading,
+  currentUserId,
+}) {
   return (
     <div className="chat-sidebar" style={{ width: '100%' }}>
       <div className="sidebar-header">
@@ -29,7 +35,8 @@ export default function ConversationList({ conversations, selectedId, onSelectCo
           <ConversationItem
             key={conversation.id}
             conversation={conversation}
-            selected={conversation.id === selectedId}
+            currentUserId={currentUserId}
+            selected={Number(conversation.id) === Number(selectedId)}
             onClick={() => onSelectConversation(conversation.id)}
           />
         ))}

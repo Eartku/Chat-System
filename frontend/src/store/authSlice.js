@@ -3,13 +3,31 @@ import { login as loginApi, register as registerApi, fetchMe as fetchMeApi } fro
 
 const token = localStorage.getItem('token');
 
+function getErrorMessage(error, fallback) {
+  const responseData = error.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData;
+  }
+
+  if (responseData?.message) {
+    return responseData.message;
+  }
+
+  if (responseData?.error) {
+    return responseData.error;
+  }
+
+  return error.message || fallback;
+}
+
 export const login = createAsyncThunk('auth/login', async (payload, { rejectWithValue }) => {
   try {
     const data = await loginApi(payload);
     localStorage.setItem('token', data.token);
     return data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || error.message);
+    return rejectWithValue(getErrorMessage(error, 'Login failed'));
   }
 });
 
@@ -19,7 +37,7 @@ export const register = createAsyncThunk('auth/register', async (payload, { reje
     localStorage.setItem('token', data.token);
     return data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || error.message);
+    return rejectWithValue(getErrorMessage(error, 'Registration failed'));
   }
 });
 
@@ -28,7 +46,7 @@ export const fetchMe = createAsyncThunk('auth/fetchMe', async (_, { rejectWithVa
     const data = await fetchMeApi();
     return data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || error.message);
+    return rejectWithValue(getErrorMessage(error, 'Unable to fetch user'));
   }
 });
 
@@ -79,8 +97,10 @@ const authSlice = createSlice({
         state.loading = false;
         state.token = action.payload.token;
         state.user = {
+          displayName: action.meta.arg.displayName || action.payload.username,
           username: action.payload.username,
           email: action.payload.email,
+          avatarUrl: action.meta.arg.avatarUrl || null,
           role: action.payload.role
         };
         state.isAuthenticated = true;

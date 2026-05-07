@@ -49,7 +49,7 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                {error && <div className="alert alert-danger">{JSON.stringify(error)}</div>}
+                {error && <div className="alert alert-danger">{error}</div>}
                 <button type="submit" className="btn btn-primary w-100" disabled={loading}>
                   {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
                 </button>

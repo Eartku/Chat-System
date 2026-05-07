@@ -1,33 +1,47 @@
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/authSlice.js';
 import {
+  createConversation,
+  fetchConversationDetail,
   fetchConversations,
   selectConversation,
-  fetchConversationDetail,
-  createConversation,
   updateConversationLastMessage,
 } from '../store/conversationSlice.js';
-import { fetchMessages, sendMessage, addMessage } from '../store/messageSlice.js';
+import { addMessage, fetchMessages, sendMessage } from '../store/messageSlice.js';
+import { logoutRequest } from '../api/authApi.js';
 import ConversationList from '../components/ConversationList.jsx';
-import MessageList from '../components/MessageList.jsx';
-import MessageInput from '../components/MessageInput.jsx';
 import CreateConversationModal from '../components/CreateConversationModal.jsx';
+import MessageInput from '../components/MessageInput.jsx';
+import MessageList from '../components/MessageList.jsx';
 import SearchFriendsModal from '../components/SearchFriendsModal.jsx';
 import useWebSocket from '../hooks/useWebSocket.js';
+import { handleAvatarError } from '../utils/avatar.js';
+import {
+  getConversationAvatarFallback,
+  getConversationAvatarUrl,
+  getConversationDisplayName,
+  getConversationMetaText,
+  getConversationStatusText,
+  getUserDisplayName,
+  isConversationOnline,
+  isPrivateConversation,
+} from '../utils/conversationDisplay.js';
 
 export default function ChatPage() {
   const dispatch = useDispatch();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const { user, token } = useSelector((s) => s.auth);
+  const { user, token } = useSelector((state) => state.auth);
   const {
     conversations,
     selectedConversation,
     selectedConversationDetail,
     loading: conversationsLoading,
-  } = useSelector((s) => s.conversation);
-  const { messagesByConversation, loading: messagesLoading } = useSelector((s) => s.message);
+  } = useSelector((state) => state.conversation);
+  const { messagesByConversation, loading: messagesLoading } = useSelector(
+    (state) => state.message
+  );
 
   const messages = useMemo(
     () => messagesByConversation[selectedConversation] || [],
@@ -35,16 +49,26 @@ export default function ChatPage() {
   );
 
   const selectedConversationData = useMemo(() => {
-    if (selectedConversationDetail) return selectedConversationDetail;
-    return conversations.find((c) => c.id === selectedConversation) || null;
-  }, [selectedConversationDetail, conversations, selectedConversation]);
+    if (
+      selectedConversationDetail &&
+      Number(selectedConversationDetail.id) === Number(selectedConversation)
+    ) {
+      return selectedConversationDetail;
+    }
+
+    return (
+      conversations.find(
+        (conversation) => Number(conversation.id) === Number(selectedConversation)
+      ) || null
+    );
+  }, [conversations, selectedConversation, selectedConversationDetail]);
 
   const handleSelectConversation = useCallback(
-    (id) => {
-      console.debug('[ChatPage] selectConversation', { id });
-      dispatch(selectConversation(id));
-      dispatch(fetchConversationDetail(id));
-      dispatch(fetchMessages(id));
+    (conversationId) => {
+      console.debug('[ChatPage] selectConversation', { conversationId });
+      dispatch(selectConversation(conversationId));
+      dispatch(fetchConversationDetail(conversationId));
+      dispatch(fetchMessages(conversationId));
     },
     [dispatch]
   );
@@ -57,7 +81,7 @@ export default function ChatPage() {
     if (!selectedConversation && conversations.length > 0) {
       handleSelectConversation(conversations[0].id);
     }
-  }, [conversations, selectedConversation, handleSelectConversation]);
+  }, [conversations, handleSelectConversation, selectedConversation]);
 
   const handleSendMessage = async (content) => {
     if (!selectedConversation || !user) return;
@@ -70,20 +94,22 @@ export default function ChatPage() {
     }
   };
 
-  // ✅ FIX: Dùng String() để tránh type mismatch (WS trả string "1", Redux lưu number 1)
   const handleNewWebSocketMessage = useCallback(
     (payload) => {
       if (!payload.conversationId) return;
+
       const conversationIdString = String(payload.conversationId);
       const selectedIdString = String(selectedConversation || '');
+
       dispatch(addMessage(payload));
       dispatch(
         updateConversationLastMessage({
           conversationId: payload.conversationId,
           content: payload.deleted ? 'Đã xóa' : payload.content,
-          createdAt: payload.createdAt
+          createdAt: payload.createdAt,
         })
       );
+
       if (conversationIdString !== selectedIdString) {
         return;
       }
@@ -93,43 +119,91 @@ export default function ChatPage() {
 
   useWebSocket(selectedConversation, token, handleNewWebSocketMessage);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    window.location.href = '/login';
+  const handleCreateConversation = useCallback(
+    async (payload) => {
+      const conversation = await dispatch(createConversation(payload)).unwrap();
+      dispatch(fetchMessages(conversation.id));
+      return conversation;
+    },
+    [dispatch]
+  );
+
+  const handleLogout = async () => {
+    try {
+      await logoutRequest();
+    } catch (error) {
+      console.warn('[ChatPage] logout request failed', error);
+    } finally {
+      dispatch(logout());
+      window.location.href = '/login';
+    }
   };
 
-  const conversationLabel = useMemo(() => {
-    if (!selectedConversationData) return 'Chọn cuộc trò chuyện';
-    if (selectedConversationData.type === 'GROUP') {
-      return selectedConversationData.name || 'Nhóm chat';
-    }
-    if (selectedConversationData.name) return selectedConversationData.name;
-    if (selectedConversationData.members?.length) {
-      const other = selectedConversationData.members.find((m) => m.userId !== user?.id);
-      return other?.username || 'Cuộc trò chuyện riêng';
-    }
-    return 'Cuộc trò chuyện riêng';
-  }, [selectedConversationData, user]);
+  const conversationLabel = useMemo(
+    () => getConversationDisplayName(selectedConversationData, user?.id),
+    [selectedConversationData, user?.id]
+  );
 
-  const avatarLetter = conversationLabel ? conversationLabel.charAt(0).toUpperCase() : '?';
+  const conversationStatus = useMemo(
+    () => getConversationStatusText(selectedConversationData, user?.id),
+    [selectedConversationData, user?.id]
+  );
+
+  const conversationMeta = useMemo(
+    () => getConversationMetaText(selectedConversationData, user?.id),
+    [selectedConversationData, user?.id]
+  );
+
+  const conversationAvatarUrl = useMemo(
+    () => getConversationAvatarUrl(selectedConversationData, user?.id),
+    [selectedConversationData, user?.id]
+  );
+
+  const conversationAvatarFallback = useMemo(
+    () => getConversationAvatarFallback(selectedConversationData, user?.id),
+    [selectedConversationData, user?.id]
+  );
+
+  const privateConversation = useMemo(
+    () => isPrivateConversation(selectedConversationData),
+    [selectedConversationData]
+  );
+
+  const online = useMemo(
+    () => isConversationOnline(selectedConversationData, user?.id),
+    [selectedConversationData, user?.id]
+  );
+
+  const currentUserSubtitle = useMemo(() => {
+    if (!user?.username) {
+      return '';
+    }
+
+    const displayName = getUserDisplayName(user);
+    if (displayName && displayName !== user.username) {
+      return `${displayName} | @${user.username}`;
+    }
+
+    return `@${user.username}`;
+  }, [user]);
 
   return (
     <div className="chat-root">
-      {/* Top bar */}
       <header className="chat-topbar">
         <div className="chat-topbar__brand">
-          <div className="chat-topbar__logo">💬</div>
+          <div className="chat-topbar__logo">C</div>
           <div>
             <div className="chat-topbar__title">ChatApp</div>
-            <div className="chat-topbar__subtitle">{user?.username}</div>
+            <div className="chat-topbar__subtitle">{currentUserSubtitle}</div>
           </div>
         </div>
+
         <div className="chat-topbar__actions">
           <button className="btn btn-outline btn-sm" onClick={() => setShowSearchModal(true)}>
-            👥 Tìm bạn
+            Tìm bạn
           </button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowCreateModal(true)}>
-            + Cuộc trò chuyện
+            + Tạo nhóm
           </button>
           <button className="btn btn-danger btn-sm" onClick={handleLogout}>
             Đăng xuất
@@ -137,30 +211,52 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Body */}
       <div className="chat-body">
-        {/* Sidebar */}
         <aside className="chat-sidebar">
           <ConversationList
             conversations={conversations}
+            currentUserId={user?.id}
             selectedId={selectedConversation}
             onSelectConversation={handleSelectConversation}
             loading={conversationsLoading}
           />
         </aside>
 
-        {/* Main */}
         <main className="chat-main">
-          {/* Chat header */}
           <div className="chat-header">
             {selectedConversationData ? (
               <>
-                <div className="chat-header__avatar">{avatarLetter}</div>
+                <div className="chat-header__avatar-wrap">
+                  <div className="chat-header__avatar">
+                    {conversationAvatarUrl ? (
+                      <img
+                        src={conversationAvatarUrl}
+                        alt={conversationLabel}
+                        onError={privateConversation ? handleAvatarError : undefined}
+                      />
+                    ) : (
+                      conversationAvatarFallback
+                    )}
+                  </div>
+                  {privateConversation && (
+                    <span
+                      className={`presence-dot presence-dot--header ${online ? 'online' : 'offline'}`}
+                      aria-hidden="true"
+                    />
+                  )}
+                </div>
+
                 <div className="chat-header__info">
                   <div className="chat-header__name">{conversationLabel}</div>
-                  <div className="chat-header__sub">
-                    {selectedConversationData?.lastMessage || 'Bắt đầu cuộc trò chuyện'}
+                  <div
+                    className={`chat-header__status${privateConversation ? '' : ' chat-header__status--group'}`}
+                  >
+                    {privateConversation && (
+                      <span className={`presence-dot ${online ? 'online' : 'offline'}`} aria-hidden="true" />
+                    )}
+                    <span>{conversationStatus}</span>
                   </div>
+                  <div className="chat-header__meta">{conversationMeta}</div>
                 </div>
               </>
             ) : (
@@ -170,7 +266,6 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* Messages */}
           <div className="messages-area">
             <MessageList
               messages={messages}
@@ -179,7 +274,6 @@ export default function ChatPage() {
             />
           </div>
 
-          {/* Input */}
           <MessageInput onSend={handleSendMessage} disabled={!selectedConversation} />
         </main>
       </div>
@@ -188,10 +282,23 @@ export default function ChatPage() {
         show={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={async (payload) => {
-          await dispatch(createConversation(payload));
+          await handleCreateConversation(payload);
           setShowCreateModal(false);
         }}
         currentUserId={user?.id}
+      />
+
+      <SearchFriendsModal
+        show={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        currentUserId={user?.id}
+        onStartConversation={async (targetUser) => {
+          await handleCreateConversation({
+            type: 'PRIVATE',
+            memberIds: [targetUser.id],
+          });
+          setShowSearchModal(false);
+        }}
       />
     </div>
   );

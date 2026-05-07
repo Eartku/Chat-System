@@ -122,3 +122,5 @@ Luồng xác thực JWT:
 * Cập nhật `useWebSocket.js` để giữ kết nối STOMP ổn định, dùng heartbeat và resubscribe khi conversation thay đổi.
 * Chuẩn hóa message id trong `messageSlice.js` để tránh duplicate giữa REST Response và WS payload.
 * Loại bỏ optimistic temp message trong `ChatPage.jsx`, dùng server/WebSocket làm nguồn dữ liệu chính.
+
+Nguyên nhân gần như đã rõ: request /auth/login trả 401 khi sai mật khẩu, nhưng interceptor Axios đang coi mọi 401 là hết phiên và gọi window.location.href = '/login'. Vì thế Redux vừa set lỗi xong thì trang bị reload/redirect lại ngay, nên bạn thấy lỗi “có mà như không”.

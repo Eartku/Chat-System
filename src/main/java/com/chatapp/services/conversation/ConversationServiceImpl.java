@@ -56,9 +56,18 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     public List<ConversationSummaryResponse> getAllConversation() {
         User currentUser = authService.getCurrentUserEntity();
-        return conversationRepository.findByUserId(currentUser.getUserId())
-                .stream()
-                .map(ConversationMapper::toSummary)
+        List<Conversation> conversations = conversationRepository.findByUserId(currentUser.getUserId());
+        Map<Long, List<ConversationMember>> membersByConversation = conversations.isEmpty()
+                ? Map.of()
+                : conversationMemberRepository.findByConversation_ConvIdIn(
+                        conversations.stream().map(Conversation::getConvId).toList())
+                    .stream()
+                    .collect(Collectors.groupingBy(member -> member.getConversation().getConvId()));
+
+        return conversations.stream()
+                .map(conversation -> ConversationMapper.toSummary(
+                        conversation,
+                        membersByConversation.getOrDefault(conversation.getConvId(), List.of())))
                 .toList();
     }
 

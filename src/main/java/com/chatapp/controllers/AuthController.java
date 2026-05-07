@@ -1,4 +1,5 @@
 package com.chatapp.controllers;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,14 +15,13 @@ import com.chatapp.services.auth.AuthService;
 
 import jakarta.validation.Valid;
 
-
 @RestController
 @RequestMapping("api/auth")
 public class AuthController {
 
     private final AuthService authService;
 
-    public AuthController(AuthService authService){
+    public AuthController(AuthService authService) {
         this.authService = authService;
     }
 
@@ -37,17 +37,12 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<String> logout() {
-        // JWT stateless → client tự xóa token
+        authService.logout();
         return ResponseEntity.ok("Logged out successfully");
     }
 
     @GetMapping("/me")
-    public UserResponse getCurrentUser(){
+    public UserResponse getCurrentUser() {
         return authService.getCurrentUser();
     }
-    // @PostMapping("/refresh-token")
-    // public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest request) {
-    //     
-    //     return null;
-    // }
 }

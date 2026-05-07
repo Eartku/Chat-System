@@ -99,6 +99,7 @@ const conversationSlice = createSlice({
           (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
         );
         state.selectedConversation = action.payload.id;
+        state.selectedConversationDetail = action.payload;
       })
       .addCase(createConversation.rejected, (state, action) => {
         state.loading = false;

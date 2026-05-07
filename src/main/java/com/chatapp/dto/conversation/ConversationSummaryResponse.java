@@ -1,5 +1,7 @@
 package com.chatapp.dto.conversation;
+
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ConversationSummaryResponse(
     Long id,
@@ -7,5 +9,6 @@ public record ConversationSummaryResponse(
     String image,
     String type,
     String lastMessage,
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+    List<MemberResponse> members
 ) {}

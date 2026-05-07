@@ -1,38 +1,49 @@
 package com.chatapp.mappers;
-import com.chatapp.dto.conversation.*;
-import com.chatapp.models.*;
+
 import java.util.List;
+
+import com.chatapp.dto.conversation.ConversationCreateRequest;
+import com.chatapp.dto.conversation.ConversationResponse;
+import com.chatapp.dto.conversation.ConversationSummaryResponse;
+import com.chatapp.models.Conversation;
+import com.chatapp.models.ConversationMember;
 
 public class ConversationMapper {
 
-    public static ConversationSummaryResponse toSummary(Conversation c) { // trả về thông tin tổng quan (dùng cho GET/api/conversation - findAll)
-            return new ConversationSummaryResponse(
-                c.getConvId(),
-                c.getName(),
-                c.getImage(),
-                c.getType().name(),
-                c.getLastMessage(),
-                c.getUpdatedAt()
-            );
-        }
-
-    public static ConversationResponse toResponse(Conversation c, List<ConversationMember> members /* list lấy từ service*/ ) { //trả vè thông tin đây đủ hơn (dùng cho GET /api/conversation/{id})
-        return new ConversationResponse(
-            c.getConvId(),
-            c.getName(),
-            c.getImage(),
-            c.getType().name(),
-            c.getCreatedAt(),
-            c.getUpdatedAt(),
-            c.getLastMessage(), 
-            MemberMapper.toResponseList(members));
+    public static ConversationSummaryResponse toSummary(
+            Conversation conversation,
+            List<ConversationMember> members) {
+        return new ConversationSummaryResponse(
+            conversation.getConvId(),
+            conversation.getName(),
+            conversation.getImage(),
+            conversation.getType().name(),
+            conversation.getLastMessage(),
+            conversation.getUpdatedAt(),
+            MemberMapper.toResponseList(members)
+        );
     }
 
-    public static Conversation requestToEntity(ConversationCreateRequest request) { // trả về thực thể (POST /api/conversation)
-        Conversation conv = new Conversation();
-        conv.setName(request.name());
-        conv.setImage(request.imgUrl());
-        conv.setType(request.type());
-        return conv;
+    public static ConversationResponse toResponse(
+            Conversation conversation,
+            List<ConversationMember> members) {
+        return new ConversationResponse(
+            conversation.getConvId(),
+            conversation.getName(),
+            conversation.getImage(),
+            conversation.getType().name(),
+            conversation.getCreatedAt(),
+            conversation.getUpdatedAt(),
+            conversation.getLastMessage(),
+            MemberMapper.toResponseList(members)
+        );
+    }
+
+    public static Conversation requestToEntity(ConversationCreateRequest request) {
+        Conversation conversation = new Conversation();
+        conversation.setName(request.name());
+        conversation.setImage(request.imgUrl());
+        conversation.setType(request.type());
+        return conversation;
     }
 }

@@ -16,4 +16,5 @@ public interface MessageService {
     void deleteMessageById(Long messageId);
 
     MessageResponse markMessageAsRead(Long messageId);
+
 }
