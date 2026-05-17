@@ -73,6 +73,8 @@ public class UserServiceImpl implements UserService {
         updateUsername(user, request.username());
         updateEmail(user, request.email());
         updatePassword(user, request.password());
+        updateDisplayName(user, request.displayName());
+        updateAvatar(user, request.avatarUrl());
 
         User saved = userRepository.save(user);
         return UserMapper.toResponse(saved);
@@ -149,6 +151,24 @@ public class UserServiceImpl implements UserService {
 
         String normalizedPassword = normalizeRequiredText(password, "Password");
         user.setPassword(passwordEncoder.encode(normalizedPassword));
+    }
+
+    private void updateDisplayName(User user, String displayName) {
+        if (displayName == null) {
+            return;
+        }
+        String normalized = displayName.trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("Display name không được để trống");
+        }
+        user.setDisplayName(normalized);
+    }
+
+    private void updateAvatar(User user, String avatarUrl) {
+        if (avatarUrl == null) {
+            return;
+        }
+        user.setAvatarUrl(avatarUrl.trim().isEmpty() ? null : avatarUrl.trim());
     }
 
     private void ensureUsernameAvailable(String username) {

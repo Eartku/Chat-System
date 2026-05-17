@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import ChatPage from './pages/ChatPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 import { fetchMe, logout } from './store/authSlice.js';
 
 function ProtectedRoute({ children }) {
@@ -41,6 +42,15 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+
       <Route path="/*" element={<Navigate to={token ? '/chat' : '/login'} replace />} />
     </Routes>
   );

@@ -40,16 +40,14 @@ export function getConversationDisplayName(conversation, currentUserId) {
 }
 
 export function getConversationAvatarUrl(conversation, currentUserId) {
-  if (!conversation) {
-    return '';
-  }
-
+  if (!conversation) return '';
   if (!isPrivateConversation(conversation)) {
     return normalizeText(conversation.image);
   }
-
+  
   const otherMember = getPrivateConversationMember(conversation, currentUserId);
-  return getResolvedAvatarUrl(otherMember);
+  console.log('[avatarUrl] otherMember =', JSON.stringify(otherMember, null, 2));
+  return normalizeText(otherMember?.avatarUrl); // ← trả về '' nếu không có ảnh
 }
 
 export function getConversationAvatarFallback(conversation, currentUserId) {

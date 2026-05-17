@@ -124,3 +124,19 @@ Luồng xác thực JWT:
 * Loại bỏ optimistic temp message trong `ChatPage.jsx`, dùng server/WebSocket làm nguồn dữ liệu chính.
 
 Nguyên nhân gần như đã rõ: request /auth/login trả 401 khi sai mật khẩu, nhưng interceptor Axios đang coi mọi 401 là hết phiên và gọi window.location.href = '/login'. Vì thế Redux vừa set lỗi xong thì trang bị reload/redirect lại ngay, nên bạn thấy lỗi “có mà như không”.
+## 14. API endpoint
+POST /api/auth/login (authApi.js (line 4), gọi từ LoginPage.jsx (line 21))
+POST /api/auth/register (authApi.js (line 8), gọi từ RegisterPage.jsx (line 39))
+GET /api/auth/me (authApi.js (line 12), gọi từ App.jsx (line 22))
+POST /api/auth/logout (authApi.js (line 16), gọi từ ChatPage.jsx (line 133))
+GET /api/user/search?query=... (userApi.js (line 4), gọi từ SearchFriendsModal.jsx (line 42), CreateConversationModal.jsx (line 50))
+GET /api/conversations (conversationApi.js (line 4), gọi từ ChatPage.jsx (line 77))
+GET /api/conversations/{conversationId} (conversationApi.js (line 8), gọi từ ChatPage.jsx (line 70))
+POST /api/conversations (conversationApi.js (line 12), gọi từ ChatPage.jsx (line 124))
+GET /api/conversations/{conversationId}/messages (messageApi.js (line 4), gọi từ ChatPage.jsx (line 71))
+POST /api/conversations/{conversationId}/messages (messageApi.js (line 8), gọi từ ChatPage.jsx (line 90))
+DELETE /api/messages/{messageId} (messageApi.js (line 20), gọi từ MessageItem.jsx (line 18))
+WebSocket đang dùng ở frontend:
+Kết nối SockJS: /ws (useWebSocket.js (line 56))
+Subscribe topic: /topic/conversations/{conversationId} (useWebSocket.js (line 29))
+Base REST prefix là /api (axiosInstance.js (line 3))

@@ -1,4 +1,3 @@
-// useWebSocket.js
 import { useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -7,14 +6,16 @@ export default function useWebSocket(conversationId, token, onMessage) {
   const clientRef = useRef(null);
   const subscriptionRef = useRef(null);
   const [connected, setConnected] = useState(false);
-
   const onMessageRef = useRef(onMessage);
+
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
 
   const subscribeConversation = (client, conversationIdToSubscribe) => {
     if (!conversationIdToSubscribe || !client) return;
+
+    // Unsubscribe cũ
     if (subscriptionRef.current) {
       try {
         subscriptionRef.current.unsubscribe();
@@ -22,6 +23,12 @@ export default function useWebSocket(conversationId, token, onMessage) {
         console.warn('[WebSocket] unsubscribe failed', error);
       }
       subscriptionRef.current = null;
+    }
+
+    // Chỉ subscribe khi client thực sự connected
+    if (!client.connected) {
+      console.debug('[WebSocket] client not connected yet, skip subscribe');
+      return;
     }
 
     console.debug('[WebSocket] subscribing', { conversationId: conversationIdToSubscribe });
@@ -44,6 +51,7 @@ export default function useWebSocket(conversationId, token, onMessage) {
     );
   };
 
+  // Effect 1: khởi tạo STOMP client khi có token
   useEffect(() => {
     if (!token) {
       console.debug('[WebSocket] no token, skipping connect');
@@ -59,23 +67,24 @@ export default function useWebSocket(conversationId, token, onMessage) {
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
-      debug: (msg) => {
-        console.debug('[WebSocket STOMP]', msg);
-      },
+      debug: (msg) => console.debug('[WebSocket STOMP]', msg),
       onConnect: () => {
-        setConnected(true);
         console.debug('[WebSocket] connected');
-        subscribeConversation(client, conversationId);
+        setConnected(true);
+        // Subscribe ngay khi connect xong, dùng ref để lấy conversationId hiện tại
+        subscribeConversation(client, conversationIdRef.current);
       },
       onStompError: (frame) => {
         console.error('[WebSocket] STOMP error', frame);
+        setConnected(false);
       },
       onWebSocketError: (error) => {
         console.error('[WebSocket] WebSocket error', error);
+        setConnected(false);
       },
       onDisconnect: () => {
-        setConnected(false);
         console.debug('[WebSocket] disconnected');
+        setConnected(false);
       },
     });
 
@@ -84,21 +93,30 @@ export default function useWebSocket(conversationId, token, onMessage) {
 
     return () => {
       console.debug('[WebSocket] cleanup');
-      subscriptionRef.current?.unsubscribe();
-      subscriptionRef.current = null;
+      if (subscriptionRef.current) {
+        try { subscriptionRef.current.unsubscribe(); } catch (_) {}
+        subscriptionRef.current = null;
+      }
       client.deactivate();
       clientRef.current = null;
       setConnected(false);
     };
   }, [token]);
 
+  // Ref để onConnect callback luôn thấy conversationId mới nhất
+  const conversationIdRef = useRef(conversationId);
   useEffect(() => {
-    if (!conversationId) return;
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  // Effect 2: re-subscribe khi conversationId thay đổi VÀ đã connected
+  useEffect(() => {
+    if (!conversationId || !connected) return;
     const client = clientRef.current;
-    if (client && client.active) {
+    if (client && client.connected) {
       subscribeConversation(client, conversationId);
     }
-  }, [conversationId]);
+  }, [conversationId, connected]);
 
   return connected;
 }

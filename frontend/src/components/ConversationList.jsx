@@ -26,7 +26,7 @@ export default function ConversationList({
 
         {!loading && conversations.length === 0 && (
           <div className="state-center" style={{ padding: '40px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>💬</div>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>User</div>
             <span>Chưa có cuộc trò chuyện nào</span>
           </div>
         )}

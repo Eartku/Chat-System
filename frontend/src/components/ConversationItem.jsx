@@ -38,6 +38,12 @@ export default function ConversationItem({ conversation, selected, onClick, curr
   const color = getAvatarColor(name);
   const privateConversation = isPrivateConversation(conversation);
   const online = isConversationOnline(conversation, currentUserId);
+  console.log('[ConvItem]', {
+    conversationId: conversation.id,
+    name,
+    avatarUrl,
+    rawConversation: conversation,
+  });
 
   return (
     <button
@@ -51,7 +57,7 @@ export default function ConversationItem({ conversation, selected, onClick, curr
             <img
               src={avatarUrl}
               alt={name}
-              onError={privateConversation ? handleAvatarError : undefined}
+              onError={handleAvatarError}
             />
           ) : (
             avatarFallback

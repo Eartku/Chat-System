@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/authSlice.js';
 import {
   createConversation,
@@ -16,7 +17,7 @@ import MessageInput from '../components/MessageInput.jsx';
 import MessageList from '../components/MessageList.jsx';
 import SearchFriendsModal from '../components/SearchFriendsModal.jsx';
 import useWebSocket from '../hooks/useWebSocket.js';
-import { handleAvatarError } from '../utils/avatar.js';
+import { getResolvedAvatarUrl, handleAvatarError } from '../utils/avatar.js';
 import {
   getConversationAvatarFallback,
   getConversationAvatarUrl,
@@ -30,6 +31,7 @@ import {
 
 export default function ChatPage() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const { user, token } = useSelector((state) => state.auth);
@@ -55,7 +57,6 @@ export default function ChatPage() {
     ) {
       return selectedConversationDetail;
     }
-
     return (
       conversations.find(
         (conversation) => Number(conversation.id) === Number(selectedConversation)
@@ -65,7 +66,6 @@ export default function ChatPage() {
 
   const handleSelectConversation = useCallback(
     (conversationId) => {
-      console.debug('[ChatPage] selectConversation', { conversationId });
       dispatch(selectConversation(conversationId));
       dispatch(fetchConversationDetail(conversationId));
       dispatch(fetchMessages(conversationId));
@@ -85,10 +85,7 @@ export default function ChatPage() {
 
   const handleSendMessage = async (content) => {
     if (!selectedConversation || !user) return;
-
-    console.debug('[ChatPage] sendMessage', { conversationId: selectedConversation, content });
     const result = await dispatch(sendMessage({ conversationId: selectedConversation, content }));
-
     if (result.error) {
       console.error('[ChatPage] sendMessage failed', result.error);
     }
@@ -97,10 +94,8 @@ export default function ChatPage() {
   const handleNewWebSocketMessage = useCallback(
     (payload) => {
       if (!payload.conversationId) return;
-
       const conversationIdString = String(payload.conversationId);
       const selectedIdString = String(selectedConversation || '');
-
       dispatch(addMessage(payload));
       dispatch(
         updateConversationLastMessage({
@@ -109,10 +104,7 @@ export default function ChatPage() {
           createdAt: payload.createdAt,
         })
       );
-
-      if (conversationIdString !== selectedIdString) {
-        return;
-      }
+      if (conversationIdString !== selectedIdString) return;
     },
     [dispatch, selectedConversation]
   );
@@ -175,16 +167,19 @@ export default function ChatPage() {
   );
 
   const currentUserSubtitle = useMemo(() => {
-    if (!user?.username) {
-      return '';
-    }
-
+    if (!user?.username) return '';
     const displayName = getUserDisplayName(user);
     if (displayName && displayName !== user.username) {
       return `${displayName} | @${user.username}`;
     }
-
     return `@${user.username}`;
+  }, [user]);
+
+  // Resolved avatar for current user in topbar
+  const myAvatar = useMemo(() => getResolvedAvatarUrl(user?.avatarUrl), [user?.avatarUrl]);
+  const myInitial = useMemo(() => {
+    const name = getUserDisplayName(user) || user?.username || '?';
+    return name.charAt(0).toUpperCase();
   }, [user]);
 
   return (
@@ -205,6 +200,76 @@ export default function ChatPage() {
           <button className="btn btn-outline btn-sm" onClick={() => setShowCreateModal(true)}>
             + Tạo nhóm
           </button>
+
+          {/* Profile button */}
+          <button
+            type="button"
+            onClick={() => navigate('/profile')}
+            title="Hồ sơ của tôi"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '4px 10px 4px 4px',
+              border: '1.5px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              background: 'transparent',
+              cursor: 'pointer',
+              transition: 'all var(--transition)',
+              fontFamily: 'var(--font)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--surface-2)';
+              e.currentTarget.style.borderColor = 'var(--accent)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderColor = 'var(--border)';
+            }}
+          >
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                overflow: 'hidden',
+                background: 'var(--accent-bg)',
+                border: '1px solid var(--border)',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--accent)',
+              }}
+            >
+              {user?.avatarUrl ? (
+                <img
+                  src={myAvatar}
+                  alt={getUserDisplayName(user)}
+                  onError={handleAvatarError}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                myInitial
+              )}
+            </div>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--text-primary)',
+                maxWidth: 100,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {getUserDisplayName(user) || user?.username}
+            </span>
+          </button>
+
           <button className="btn btn-danger btn-sm" onClick={handleLogout}>
             Đăng xuất
           </button>

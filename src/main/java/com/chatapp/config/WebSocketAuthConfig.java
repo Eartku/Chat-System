@@ -9,12 +9,12 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
+
 import com.chatapp.services.auth.CustomUserDetailsService;
 import com.chatapp.services.auth.JwtService;
 
 @Configuration
 public class WebSocketAuthConfig implements ChannelInterceptor {
-
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
 

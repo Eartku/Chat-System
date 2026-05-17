@@ -15,6 +15,7 @@ import com.chatapp.services.auth.AuthService;
 
 import jakarta.validation.Valid;
 
+
 @RestController
 @RequestMapping("api/auth")
 public class AuthController {
@@ -44,5 +45,5 @@ public class AuthController {
     @GetMapping("/me")
     public UserResponse getCurrentUser() {
         return authService.getCurrentUser();
-    }
+    }    
 }
